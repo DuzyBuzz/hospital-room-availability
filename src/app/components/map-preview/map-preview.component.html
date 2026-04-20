@@ -1,0 +1,9 @@
+<div #previewCanvas class="h-full w-full"></div>
+
+@if (!location()) {
+  <div class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/10">
+    <div class="rounded-full bg-white/96 px-4 py-2 text-xs font-semibold text-slate-700 shadow-lg shadow-slate-900/10">
+      Tap the map to place the marker
+    </div>
+  </div>
+}

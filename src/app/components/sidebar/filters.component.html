@@ -1,0 +1,65 @@
+<section class="border-b border-slate-200 bg-white/95 shadow-[0_8px_24px_-20px_rgba(15,23,42,0.3)] backdrop-blur">
+  <div class="mx-auto flex w-full max-w-440 flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+    <label class="relative min-w-72 flex-1 lg:max-w-md">
+      <span class="sr-only">Search hospitals</span>
+      <svg class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M9 3.5A5.5 5.5 0 1 0 9 14.5A5.5 5.5 0 0 0 9 3.5Zm-7 5.5a7 7 0 1 1 12.032 4.86l3.304 3.304a1 1 0 0 1-1.414 1.414l-3.304-3.304A7 7 0 0 1 2 9Z" clip-rule="evenodd"></path>
+      </svg>
+      <input
+        [value]="query()"
+        (input)="onInput($event)"
+        type="search"
+        placeholder="Search hospitals…"
+        class="w-full rounded-full border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm text-slate-700 outline-none transition focus:border-sky-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(14,165,233,0.12)]"
+      />
+    </label>
+
+    <div class="flex flex-wrap items-center gap-2">
+      @for (status of statusOptions(); track status.status) {
+        <button
+          type="button"
+          (click)="statusToggled.emit(status.status)"
+          [attr.aria-pressed]="isActive(status.status)"
+          class="inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5"
+          [style.background-color]="isActive(status.status) ? status.chipBackground : '#ffffff'"
+          [style.border-color]="status.chipBorder"
+          [style.color]="isActive(status.status) ? status.chipText : '#475569'"
+        >
+          <span class="inline-flex h-2.5 w-2.5 rounded-full" [style.background-color]="status.accent"></span>
+          {{ status.label }}
+          <span class="rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200/70">
+            {{ statusCounts()[status.status] }}
+          </span>
+        </button>
+      }
+    </div>
+
+    <label class="min-w-48">
+      <span class="sr-only">Filter by room type</span>
+      <select
+        [value]="selectedRoomType()"
+        (change)="onRoomTypeChange($event)"
+        class="w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none transition focus:border-sky-400 focus:shadow-[0_0_0_4px_rgba(14,165,233,0.12)]"
+      >
+        <option value="all">All room types</option>
+        @for (roomType of roomTypeOptions(); track roomType) {
+          <option [value]="roomType">{{ roomType }}</option>
+        }
+      </select>
+    </label>
+
+    <label class="min-w-48">
+      <span class="sr-only">Filter by landmark or area</span>
+      <select
+        [value]="selectedArea()"
+        (change)="onAreaChange($event)"
+        class="w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none transition focus:border-sky-400 focus:shadow-[0_0_0_4px_rgba(14,165,233,0.12)]"
+      >
+        <option value="all">All landmarks and areas</option>
+        @for (areaOption of areaOptions(); track areaOption) {
+          <option [value]="areaOption">{{ areaOption }}</option>
+        }
+      </select>
+    </label>
+  </div>
+</section>

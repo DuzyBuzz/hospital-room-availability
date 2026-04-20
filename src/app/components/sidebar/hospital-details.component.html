@@ -1,0 +1,84 @@
+<section class="overflow-hidden rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm">
+  @if (hospital(); as selectedHospital) {
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Selected Hospital</p>
+        <h2 class="mt-2 text-xl font-bold tracking-tight text-slate-900">{{ selectedHospital.name }}</h2>
+        <p class="mt-1 text-sm font-semibold text-slate-500">{{ selectedHospital.category }}</p>
+      </div>
+
+      <span
+        class="inline-flex shrink-0 rounded-full px-3 py-1 text-xs font-bold"
+        [style.background-color]="statusMeta(selectedHospital).chipBackground"
+        [style.color]="statusMeta(selectedHospital).chipText"
+      >
+        {{ statusMeta(selectedHospital).label }}
+      </span>
+    </div>
+
+    <p class="mt-4 text-sm leading-6 text-slate-600">{{ selectedHospital.description }}</p>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+      <div class="rounded-3xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200/80 sm:col-span-2">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Address</p>
+        <p class="mt-2 text-sm font-semibold text-slate-900">{{ selectedHospital.landmark || 'Landmark not provided' }}</p>
+        <p class="mt-1 text-sm text-slate-600">{{ selectedHospital.address || 'Address not provided yet' }}</p>
+      </div>
+
+      <div class="rounded-3xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200/80">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Contact</p>
+        <p class="mt-2 text-sm font-semibold text-slate-900">{{ selectedHospital.contactNumber }}</p>
+      </div>
+
+      <div class="rounded-3xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200/80">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Updated</p>
+        <p class="mt-2 text-sm font-semibold text-slate-900">{{ formatLastUpdated(selectedHospital) }}</p>
+      </div>
+
+      <div class="rounded-3xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200/80">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Capacity</p>
+        <p class="mt-2 text-sm font-semibold text-slate-900">{{ selectedHospital.availableRooms }} / {{ selectedHospital.totalRooms }} rooms</p>
+      </div>
+
+      <div class="rounded-3xl bg-slate-50 px-4 py-3 ring-1 ring-slate-200/80">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Website</p>
+        <div class="mt-2 text-sm font-semibold text-slate-900">
+          @if (selectedHospital.website.length > 0) {
+            <a [href]="selectedHospital.website" target="_blank" rel="noreferrer" class="text-sky-700 transition hover:text-sky-800 hover:underline">
+              {{ selectedHospital.website }}
+            </a>
+          } @else {
+            Website not provided
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Room Types</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        @for (roomType of selectedHospital.roomTypes; track roomType) {
+          <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200/80">
+            {{ roomType }}
+          </span>
+        }
+      </div>
+    </div>
+
+    <div class="mt-5 flex items-center justify-between gap-3">
+      <p class="text-xs text-slate-500">Need to update this listing?</p>
+      <a
+        [routerLink]="['/facility']"
+        [queryParams]="{ hospitalId: selectedHospital.id }"
+        class="rounded-full bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
+      >
+        Manage Listing
+      </a>
+    </div>
+  } @else {
+    <div class="rounded-3xl bg-slate-50 px-5 py-10 text-center ring-1 ring-slate-200/80">
+      <p class="text-base font-semibold text-slate-900">No hospital selected yet.</p>
+      <p class="mt-2 text-sm text-slate-500">Pick a result card or map marker to inspect the current room availability.</p>
+    </div>
+  }
+</section>

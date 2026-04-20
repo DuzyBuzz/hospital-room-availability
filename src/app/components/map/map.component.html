@@ -1,0 +1,58 @@
+<section class="relative h-full w-full overflow-hidden">
+  <div #mapCanvas class="h-full w-full"></div>
+
+  @if (isFullDisplay()) {
+    <div class="maps-control-stack">
+      <div class="maps-control-group">
+        <button
+          type="button"
+          class="maps-control-button"
+          (click)="zoomIn()"
+          aria-label="Zoom in"
+        >
+          <i class="pi pi-plus text-sm" aria-hidden="true"></i>
+        </button>
+
+        <button
+          type="button"
+          class="maps-control-button"
+          (click)="zoomOut()"
+          aria-label="Zoom out"
+        >
+          <i class="pi pi-minus text-sm" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="maps-control-button"
+        (click)="focusInitialView()"
+        aria-label="Recenter map on Iloilo"
+      >
+        <i class="pi pi-compass text-sm" aria-hidden="true"></i>
+      </button>
+
+      <button
+        type="button"
+        class="maps-control-button"
+        (click)="locateUser()"
+        aria-label="Locate me"
+      >
+        <i class="pi pi-send text-sm" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="maps-legend" aria-label="Map legend">
+      <p class="maps-legend__title">Availability</p>
+
+      <div class="maps-legend__items">
+        @for (statusOption of statusOptions; track statusOption.status) {
+          <div class="maps-legend__item">
+            <span class="maps-legend__dot" [style.background-color]="statusOption.accent"></span>
+            <span>{{ statusOption.label }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</section>

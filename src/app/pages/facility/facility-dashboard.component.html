@@ -1,0 +1,296 @@
+<section class="gmaps-page">
+  <app-map
+    class="absolute inset-0 block h-full w-full"
+    [panelTitle]="'Iloilo City, Philippines'"
+    [mapNotice]="mapService.mapNotice()"
+    [hospitals]="hospitalService.filteredHospitals()"
+    [selectedHospitalId]="activeSelectionId()"
+    [selectedHospital]="mapSelectedHospital()"
+    [allowLocationSelection]="false"
+    [draftLocation]="mapService.draftLocation()"
+    [displayMode]="'full'"
+    (hospitalSelected)="selectForEditing($event)"
+  />
+
+  <div class="gmaps-floating-search">
+    <label class="gmaps-search-bar">
+      <i class="pi pi-map-marker text-sm text-slate-300" aria-hidden="true"></i>
+      <input
+        type="search"
+        [value]="hospitalService.searchTerm()"
+        (input)="updateSearchTerm(($any($event.target).value ?? '').toString())"
+        placeholder="Search hospitals..."
+        aria-label="Search hospitals"
+      />
+      <button type="button" class="gmaps-search-icon" aria-label="Voice search">
+        <i class="pi pi-microphone" aria-hidden="true"></i>
+      </button>
+    </label>
+  </div>
+
+  <div class="gmaps-chip-row" aria-label="Quick filters">
+    <button type="button" class="gmaps-chip" (click)="showAllHospitals()">
+      <i class="pi pi-building-columns" aria-hidden="true"></i>
+      <span>All hospitals</span>
+    </button>
+
+    <button
+      type="button"
+      class="gmaps-chip"
+      [class.gmaps-chip--active]="hospitalService.searchTerm().trim().length === 0"
+      (click)="showAllHospitals()"
+    >
+      <i class="pi pi-building-columns" aria-hidden="true"></i>
+      <span>Hospitals</span>
+    </button>
+
+    <button
+      type="button"
+      class="gmaps-chip gmaps-chip--status gmaps-chip--available"
+      [class.gmaps-chip--active]="isSingleStatusSelected('available')"
+      (click)="showOnlyStatus('available')"
+    >
+      <span class="gmaps-chip__dot"></span>
+      <span>Available</span>
+    </button>
+
+    <button
+      type="button"
+      class="gmaps-chip gmaps-chip--status gmaps-chip--fewBeds"
+      [class.gmaps-chip--active]="isSingleStatusSelected('fewBeds')"
+      (click)="showOnlyStatus('fewBeds')"
+    >
+      <span class="gmaps-chip__dot"></span>
+      <span>Few Beds</span>
+    </button>
+
+    <button
+      type="button"
+      class="gmaps-chip gmaps-chip--status gmaps-chip--full"
+      [class.gmaps-chip--active]="isSingleStatusSelected('full')"
+      (click)="showOnlyStatus('full')"
+    >
+      <span class="gmaps-chip__dot"></span>
+      <span>Full</span>
+    </button>
+  </div>
+
+  <aside class="gmaps-side-panel hidden lg:flex">
+    <div class="gmaps-side-panel__header">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Contribute</p>
+        <h1 class="mt-2 text-2xl font-bold tracking-tight text-slate-900">Manage hospital facilities</h1>
+      </div>
+
+      @if (authService.isAuthenticated()) {
+        <button type="button" class="gmaps-mini-action" (click)="startNewEntry()">Add hospital</button>
+      } @else {
+        <button type="button" class="gmaps-mini-action" (click)="openSignInModal()">Sign in</button>
+      }
+    </div>
+
+    <div class="gmaps-side-panel__meta">
+      <div class="gmaps-side-panel__meta-card">
+        <span class="gmaps-side-panel__meta-label">Facilities</span>
+        <strong>{{ hospitalService.totalHospitalCount() }}</strong>
+      </div>
+
+      <div class="gmaps-side-panel__meta-card">
+        <span class="gmaps-side-panel__meta-label">Open rooms</span>
+        <strong>{{ hospitalService.totalAvailableRooms() }}</strong>
+      </div>
+
+      <button type="button" class="gmaps-side-panel__meta-card gmaps-side-panel__meta-card--action" (click)="locateUser()">
+        <span class="gmaps-side-panel__meta-label">Locate</span>
+        <strong>Me</strong>
+      </button>
+    </div>
+
+    <div class="gmaps-side-panel__body">
+      @if (!authService.isAuthenticated()) {
+        <div class="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p class="font-semibold">Sign in required for edits</p>
+          <p class="mt-1">Browsing stays public. Sign in when you want to add or update a hospital facility.</p>
+        </div>
+      }
+
+      @if (hospitalService.saveMessage(); as saveMessage) {
+        <div class="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {{ saveMessage }}
+        </div>
+      }
+
+      @if (hospitalService.errorMessage(); as errorMessage) {
+        <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {{ errorMessage }}
+        </div>
+      }
+
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          (click)="openSelectedEntry()"
+          [disabled]="hospitalService.selectedHospital() === null"
+          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Edit selected
+        </button>
+
+        @if (authService.isAuthenticated()) {
+          <button
+            type="button"
+            (click)="startNewEntry()"
+            class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Add hospital
+          </button>
+        }
+      </div>
+
+      <app-hospital-list
+        [hospitals]="hospitalService.filteredHospitals()"
+        [selectedHospitalId]="activeSelectionId()"
+        [loading]="hospitalService.loading()"
+        (hospitalSelected)="selectForEditing($event)"
+      />
+
+      <app-hospital-details [hospital]="mapSelectedHospital()" />
+    </div>
+  </aside>
+
+  <section class="gmaps-mobile-sheet lg:hidden" [class.gmaps-mobile-sheet--expanded]="mobileSheetExpanded()">
+    <button
+      type="button"
+      class="gmaps-mobile-sheet__handle"
+      (click)="toggleMobileSheet()"
+      [attr.aria-expanded]="mobileSheetExpanded()"
+      aria-label="Toggle contribution sheet"
+    >
+      <span class="gmaps-mobile-sheet__grab"></span>
+    </button>
+
+    <div class="gmaps-mobile-sheet__header">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">Contribute</p>
+        <h2 class="mt-1 text-xl font-bold tracking-tight text-white">Hospital details</h2>
+      </div>
+
+      @if (authService.isAuthenticated()) {
+        <button type="button" class="gmaps-mobile-sheet__action" (click)="startNewEntry()">Add hospital</button>
+      } @else {
+        <button type="button" class="gmaps-mobile-sheet__action" (click)="openSignInModal()">Sign in</button>
+      }
+    </div>
+
+    <div class="gmaps-mobile-sheet__meta">
+      <div>
+        <span>Facilities</span>
+        <strong>{{ hospitalService.totalHospitalCount() }}</strong>
+      </div>
+      <div>
+        <span>Open rooms</span>
+        <strong>{{ hospitalService.totalAvailableRooms() }}</strong>
+      </div>
+    </div>
+
+    <div class="gmaps-mobile-sheet__body">
+      @if (!authService.isAuthenticated()) {
+        <div class="rounded-3xl border border-amber-200/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          Sign in to add or update a hospital facility listing.
+        </div>
+      }
+
+      @if (hospitalService.saveMessage(); as saveMessage) {
+        <div class="rounded-3xl border border-emerald-200/60 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          {{ saveMessage }}
+        </div>
+      }
+
+      @if (hospitalService.errorMessage(); as errorMessage) {
+        <div class="rounded-3xl border border-rose-200/60 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          {{ errorMessage }}
+        </div>
+      }
+
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          (click)="openSelectedEntry()"
+          [disabled]="hospitalService.selectedHospital() === null"
+          class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Edit selected
+        </button>
+
+        <button
+          type="button"
+          (click)="locateUser()"
+          class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+        >
+          Locate me
+        </button>
+      </div>
+
+      <app-hospital-details [hospital]="mapSelectedHospital()" />
+
+      <div class="rounded-4xl bg-white px-4 py-4 text-slate-900">
+        <app-hospital-list
+          [hospitals]="hospitalService.filteredHospitals()"
+          [selectedHospitalId]="activeSelectionId()"
+          [loading]="hospitalService.loading()"
+          (hospitalSelected)="selectForEditing($event)"
+        />
+      </div>
+    </div>
+  </section>
+
+  <app-auth-modal />
+
+  <p-dialog
+    [visible]="entryModalOpen()"
+    (visibleChange)="handleEntryDialogVisibilityChange($event)"
+    [modal]="true"
+    [dismissableMask]="!hospitalService.saving()"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="false"
+    [baseZIndex]="1400"
+    styleClass="gmaps-fullscreen-dialog"
+    maskStyleClass="gmaps-dialog-mask"
+  >
+    <div class="flex h-full min-h-0 flex-col">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 sm:px-8">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Hospital facility</p>
+          <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900">{{ entryModalTitle() }}</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-500">
+            Add the public-facing hospital details visitors need, then pin the exact address on the embedded map.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          (click)="closeEntryModal()"
+          class="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          aria-label="Close hospital facility dialog"
+        >
+          <i class="pi pi-times text-sm" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+        <app-facility-form
+          [hospital]="editingHospital()"
+          [draftLocation]="mapService.draftLocation()"
+          [roomTypeOptions]="hospitalService.roomTypeOptions()"
+          [saving]="hospitalService.saving()"
+          [statusOptions]="hospitalService.statusOptions"
+          (cancel)="closeEntryModal()"
+          (saveHospital)="saveHospital($event)"
+          (clearLocation)="clearLocation()"
+          (locationPicked)="pickLocation($event)"
+        />
+      </div>
+    </div>
+  </p-dialog>
+</section>

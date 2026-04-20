@@ -1,0 +1,83 @@
+<header class="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/96 shadow-[0_12px_32px_-28px_rgba(15,23,42,0.4)] backdrop-blur">
+  <div class="mx-auto flex w-full max-w-440 flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+    <div class="flex min-w-0 items-center gap-4">
+      <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 ring-1 ring-sky-100">
+        <svg class="h-8 w-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M16 2.667c7.364 0 13.333 5.97 13.333 13.333 0 7.364-5.969 13.333-13.333 13.333S2.667 23.364 2.667 16C2.667 8.636 8.636 2.667 16 2.667Z" fill="#e0f2fe"></path>
+          <path d="M13.333 8.667c0-.736.597-1.334 1.334-1.334h2.666c.737 0 1.334.598 1.334 1.334V13.333h4.666c.737 0 1.334.598 1.334 1.334v2.666c0 .737-.597 1.334-1.334 1.334h-4.666v4.666c0 .737-.597 1.334-1.334 1.334h-2.666c-.737 0-1.334-.597-1.334-1.334v-4.666H8.667c-.737 0-1.334-.597-1.334-1.334v-2.666c0-.736.597-1.334 1.334-1.334h4.666V8.667Z" fill="#0369a1"></path>
+        </svg>
+      </div>
+
+      <div class="min-w-0">
+        <p class="font-title truncate text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          {{ dashboardTitle() }}
+        </p>
+        <p class="mt-1 text-sm text-slate-500">
+          Live room availability across hospitals and facilities in Iloilo.
+        </p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
+        {{ facilityCount() }} facilities live
+      </div>
+      <div class="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
+        {{ openRooms() }} rooms open
+      </div>
+
+      <a
+        routerLink="/"
+        routerLinkActive="bg-slate-900 text-white shadow-sm"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+      >
+        Explore Map
+      </a>
+
+      <a
+        routerLink="/facility"
+        routerLinkActive="bg-slate-900 text-white shadow-sm"
+        class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+      >
+        Manage Facilities
+      </a>
+
+      @if (authService.loading()) {
+        <div class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">
+          Checking session...
+        </div>
+      } @else if (authService.isAuthenticated()) {
+        <div class="rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-100">
+          {{ authService.displayName() }}
+        </div>
+
+        <button
+          type="button"
+          (click)="void authService.signOut()"
+          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          Sign Out
+        </button>
+      } @else {
+        <button
+          type="button"
+          (click)="authService.openModal('signIn')"
+          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          Sign In
+        </button>
+
+        <button
+          type="button"
+          (click)="authService.openModal('signUp')"
+          class="rounded-full bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-900/12 transition hover:-translate-y-0.5 hover:bg-sky-800"
+        >
+          Create Account
+        </button>
+      }
+    </div>
+  </div>
+</header>
+
+<app-auth-modal />

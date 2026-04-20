@@ -1,0 +1,177 @@
+<section class="maps-home-shell">
+  <header class="maps-topbar">
+    <div class="maps-topbar__brand">
+      <span class="maps-topbar__logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 3.5C9.096 3.5 3.5 9.096 3.5 16S9.096 28.5 16 28.5 28.5 22.904 28.5 16 22.904 3.5 16 3.5Z" fill="#E0F2FE"></path>
+          <path d="M14.25 8.75c0-.69.56-1.25 1.25-1.25h1c.69 0 1.25.56 1.25 1.25v4h4c.69 0 1.25.56 1.25 1.25v1c0 .69-.56 1.25-1.25 1.25h-4v4c0 .69-.56 1.25-1.25 1.25h-1c-.69 0-1.25-.56-1.25-1.25v-4h-4c-.69 0-1.25-.56-1.25-1.25v-1c0-.69.56-1.25 1.25-1.25h4v-4Z" fill="#0284C7"></path>
+        </svg>
+      </span>
+
+      <div class="maps-topbar__copy">
+        <p class="maps-topbar__title">Smart Hospital Room Availability in ILOILO</p>
+        <p class="maps-topbar__subtitle">Live room availability across Iloilo City hospital facilities.</p>
+      </div>
+    </div>
+
+    <div class="maps-topbar__actions">
+      <button
+        type="button"
+        class="maps-topbar__icon-button"
+        (click)="locateUser()"
+        aria-label="Locate me on the map"
+      >
+        <i class="pi pi-send" aria-hidden="true"></i>
+      </button>
+
+      <a routerLink="/facility" class="maps-topbar__action hidden sm:inline-flex">Contribute</a>
+
+      <button
+        type="button"
+        class="maps-topbar__action lg:hidden"
+        (click)="toggleMobileSidebar()"
+        [attr.aria-expanded]="mobileSidebarOpen()"
+        aria-controls="hospital-results-drawer"
+      >
+        Results
+        <span class="maps-topbar__count">{{ hospitalService.filteredHospitals().length }}</span>
+      </button>
+    </div>
+  </header>
+
+  <app-map
+    class="maps-home-shell__map"
+    [panelTitle]="'Iloilo City, Philippines'"
+    [mapNotice]="mapService.mapNotice()"
+    [hospitals]="hospitalService.filteredHospitals()"
+    [selectedHospitalId]="hospitalService.selectedHospitalId()"
+    [selectedHospital]="hospitalService.selectedHospital()"
+    [allowLocationSelection]="false"
+    [draftLocation]="null"
+    [displayMode]="'full'"
+    (hospitalSelected)="selectHospital($event)"
+  />
+
+  <ng-template #sidebarContent>
+    <div class="maps-sidebar-shell">
+      <div class="maps-sidebar-shell__sticky">
+        <label class="maps-sidebar-search">
+          <i class="pi pi-search" aria-hidden="true"></i>
+          <input
+            type="search"
+            [value]="hospitalService.searchTerm()"
+            (input)="handleSearchInput($event)"
+            placeholder="Search hospitals..."
+            aria-label="Search hospitals"
+          />
+        </label>
+
+        <div class="maps-filter-cluster" role="group" aria-label="Filter hospitals by availability">
+          @for (statusOption of hospitalService.statusOptions; track statusOption.status) {
+            <button
+              type="button"
+              class="maps-filter-chip"
+              [class.maps-filter-chip--active]="isStatusActive(statusOption.status)"
+              (click)="toggleStatus(statusOption.status)"
+            >
+              <span class="maps-filter-chip__dot" [style.background-color]="statusOption.accent"></span>
+              <span>{{ statusOption.label }}</span>
+            </button>
+          }
+        </div>
+
+        <div class="maps-filter-select-row">
+          <label class="maps-filter-select" [class.maps-filter-select--active]="hasRoomTypeFilter()">
+            <span>Room Type</span>
+            <select [value]="hospitalService.selectedRoomType()" (change)="handleRoomTypeChange($event)">
+              <option value="all">All</option>
+              @for (roomType of hospitalService.roomTypeOptions(); track roomType) {
+                <option [value]="roomType">{{ roomType }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="maps-filter-select" [class.maps-filter-select--active]="hasAreaFilter()">
+            <span>Landmark / Area</span>
+            <select [value]="hospitalService.selectedArea()" (change)="handleAreaChange($event)">
+              <option value="all">All</option>
+              @for (areaOption of hospitalService.areaOptions(); track areaOption) {
+                <option [value]="areaOption">{{ areaOption }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <div class="maps-sidebar-summary">
+          <div>
+            <p class="maps-sidebar-summary__label">Hospitals shown</p>
+            <p class="maps-sidebar-summary__value">{{ hospitalService.filteredHospitals().length }}</p>
+          </div>
+
+          <button type="button" class="maps-sidebar-summary__action" (click)="showAllHospitals()">
+            Reset view
+          </button>
+        </div>
+      </div>
+
+      <div class="maps-sidebar-shell__scroll">
+        @if (hospitalService.errorMessage(); as errorMessage) {
+          <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {{ errorMessage }}
+          </div>
+        }
+
+        <app-hospital-details [hospital]="hospitalService.selectedHospital()" />
+
+        <app-hospital-list
+          [hospitals]="hospitalService.filteredHospitals()"
+          [selectedHospitalId]="hospitalService.selectedHospitalId()"
+          [loading]="hospitalService.loading()"
+          (hospitalSelected)="selectHospital($event)"
+        />
+      </div>
+    </div>
+  </ng-template>
+
+  <aside class="maps-overlay-panel hidden lg:flex" aria-label="Hospital search results">
+    <ng-container [ngTemplateOutlet]="sidebarContent" />
+  </aside>
+
+  @if (mobileSidebarOpen()) {
+    <button
+      type="button"
+      class="maps-mobile-backdrop lg:hidden"
+      (click)="closeMobileSidebar()"
+      aria-label="Close hospital results drawer"
+    ></button>
+  }
+
+  <aside
+    id="hospital-results-drawer"
+    class="maps-mobile-drawer lg:hidden"
+    [class.maps-mobile-drawer--open]="mobileSidebarOpen()"
+    aria-label="Hospital search results"
+  >
+    <div class="maps-mobile-drawer__frame">
+      <div class="maps-mobile-drawer__header">
+        <div>
+          <p class="maps-mobile-drawer__eyebrow">Hospital results</p>
+          <p class="maps-mobile-drawer__title">Search and filter listings</p>
+        </div>
+
+        <button
+          type="button"
+          class="maps-topbar__icon-button"
+          (click)="closeMobileSidebar()"
+          aria-label="Close hospital results drawer"
+        >
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="maps-mobile-drawer__body">
+        <ng-container [ngTemplateOutlet]="sidebarContent" />
+      </div>
+    </div>
+  </aside>
+</section>

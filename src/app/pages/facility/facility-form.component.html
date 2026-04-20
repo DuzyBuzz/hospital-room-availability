@@ -1,0 +1,206 @@
+<div class="mx-auto w-full max-w-5xl">
+  <form [formGroup]="form" (ngSubmit)="submitForm()" class="space-y-6">
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <section class="space-y-5 rounded-4xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Core details</p>
+          <h3 class="mt-2 text-xl font-bold tracking-tight text-slate-900">Hospital facility details</h3>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block sm:col-span-2">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Hospital name</span>
+            <input formControlName="name" type="text" autofocus class="gmaps-form-input" placeholder="Enter the hospital facility name" />
+            @if (shouldShowError(form.controls.name)) {
+              <span class="mt-2 block text-xs font-semibold text-rose-600">Hospital name is required.</span>
+            }
+          </label>
+
+          <label class="block">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Hospital type</span>
+            <select formControlName="category" class="gmaps-form-input">
+              @for (categoryOption of categoryOptions(); track categoryOption) {
+                <option [value]="categoryOption">{{ categoryOption }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="block">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Area</span>
+            <input formControlName="area" type="text" class="gmaps-form-input" placeholder="Molo, Mandurriao, Jaro" />
+            @if (shouldShowError(form.controls.area)) {
+              <span class="mt-2 block text-xs font-semibold text-rose-600">Area is required.</span>
+            }
+          </label>
+
+          <label class="block sm:col-span-2">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Address</span>
+            <input formControlName="address" type="text" class="gmaps-form-input" placeholder="Street, barangay, or district" />
+            @if (shouldShowError(form.controls.address)) {
+              <span class="mt-2 block text-xs font-semibold text-rose-600">Address is required.</span>
+            }
+          </label>
+
+          <label class="block sm:col-span-2">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Landmark</span>
+            <input formControlName="landmark" type="text" class="gmaps-form-input" placeholder="Nearby mall, district, or road" />
+          </label>
+        </div>
+
+        <section class="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Map preview</p>
+              <h4 class="mt-1 text-base font-bold text-slate-900">Pin the exact location</h4>
+              <p class="mt-2 text-sm text-slate-500">{{ locationLabel() }}</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                (click)="enableMapPicker()"
+                class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                Edit map location
+              </button>
+
+              @if (draftLocation()) {
+                <button
+                  type="button"
+                  (click)="clearLocation.emit()"
+                  class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Clear marker
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (mapPickerOpen()) {
+            <p class="mt-3 rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-700 ring-1 ring-sky-100">
+              Tap anywhere on the embedded map to move the marker.
+            </p>
+          }
+
+          <div class="mt-4 h-56 overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <app-map-preview [location]="draftLocation()" (locationPicked)="handleLocationPicked($event)" />
+          </div>
+        </section>
+
+        <section class="rounded-[1.75rem] border border-slate-200 bg-white p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Add more details</p>
+
+          <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            <label class="block sm:col-span-2">
+              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Description</span>
+              <textarea formControlName="description" rows="4" class="gmaps-form-input" placeholder="Describe the services, specialties, or public notes for this hospital"></textarea>
+              @if (shouldShowError(form.controls.description)) {
+                <span class="mt-2 block text-xs font-semibold text-rose-600">Add a short description for visitors.</span>
+              }
+            </label>
+
+            <label class="block">
+              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Phone</span>
+              <input formControlName="contactNumber" type="text" class="gmaps-form-input" placeholder="Phone or hotline" />
+              @if (shouldShowError(form.controls.contactNumber)) {
+                <span class="mt-2 block text-xs font-semibold text-rose-600">Contact number is required.</span>
+              }
+            </label>
+
+            <label class="block">
+              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Website</span>
+              <input formControlName="website" type="text" class="gmaps-form-input" placeholder="https://example.com" />
+            </label>
+
+            <label class="block">
+              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Total rooms</span>
+              <input formControlName="totalRooms" type="number" min="1" class="gmaps-form-input" />
+            </label>
+
+            <label class="block">
+              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Available rooms</span>
+              <input formControlName="availableRooms" type="number" min="0" class="gmaps-form-input" />
+            </label>
+          </div>
+        </section>
+      </section>
+
+      <section class="space-y-5 rounded-4xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Availability</p>
+          <h3 class="mt-2 text-xl font-bold tracking-tight text-slate-900">Room status and metadata</h3>
+        </div>
+
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Room types</p>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            @for (roomType of roomTypeOptions(); track roomType) {
+              <button
+                type="button"
+                (click)="toggleRoomType(roomType)"
+                class="rounded-full border px-3 py-2 text-sm font-semibold transition"
+                [class.border-sky-300]="isRoomTypeSelected(roomType)"
+                [class.bg-sky-50]="isRoomTypeSelected(roomType)"
+                [class.text-sky-800]="isRoomTypeSelected(roomType)"
+                [class.border-slate-200]="!isRoomTypeSelected(roomType)"
+                [class.bg-white]="!isRoomTypeSelected(roomType)"
+                [class.text-slate-600]="!isRoomTypeSelected(roomType)"
+              >
+                {{ roomType }}
+              </button>
+            }
+          </div>
+
+          <label class="mt-4 block">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Additional room types</span>
+            <input formControlName="customRoomTypes" type="text" class="gmaps-form-input" placeholder="Separate additional room types with commas" />
+          </label>
+        </div>
+
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Status</p>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            @for (statusOption of statusOptions(); track statusOption.status) {
+              <button
+                type="button"
+                (click)="selectStatus(statusOption.status)"
+                class="rounded-full border px-4 py-2 text-sm font-semibold transition"
+                [style.background-color]="form.controls.status.value === statusOption.status ? statusOption.chipBackground : '#ffffff'"
+                [style.border-color]="statusOption.chipBorder"
+                [style.color]="form.controls.status.value === statusOption.status ? statusOption.chipText : '#475569'"
+              >
+                {{ statusOption.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (submitted() && !draftLocation()) {
+          <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            Select the hospital marker on the embedded map before submitting.
+          </div>
+        }
+
+        <div class="flex flex-wrap gap-3 pt-2">
+          <button
+            type="button"
+            (click)="cancel.emit()"
+            class="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            [disabled]="saving()"
+            class="inline-flex flex-1 items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {{ saving() ? 'Submitting...' : hospital() ? 'Submit update' : 'Submit' }}
+          </button>
+        </div>
+      </section>
+    </div>
+  </form>
+</div>

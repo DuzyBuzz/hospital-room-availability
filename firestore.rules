@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function hasValidLocation(location) {
+      return location is map
+        && location.lat is number
+        && location.lng is number;
+    }
+
+    function hasValidRoomTypes(roomTypes) {
+      return roomTypes is list && roomTypes.size() > 0 && roomTypes.size() <= 12;
+    }
+
+    function hasValidStatus(status) {
+      return status in ['available', 'fewBeds', 'full'];
+    }
+
+    function hasCoordinatesIfPresent(data) {
+      return !data.keys().hasAny(['coordinates']) || hasValidLocation(data.coordinates);
+    }
+
+    function hasValidHospitalPayload(data) {
+      return data.keys().hasAll([
+          'name',
+          'description',
+          'location',
+          'landmark',
+          'address',
+          'area',
+          'contactNumber',
+          'website',
+          'totalRooms',
+          'availableRooms',
+          'roomTypes',
+          'status',
+          'sourceLabel',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'name',
+          'description',
+          'location',
+          'coordinates',
+          'landmark',
+          'address',
+          'area',
+          'contactNumber',
+          'website',
+          'totalRooms',
+          'availableRooms',
+          'roomTypes',
+          'status',
+          'sourceLabel',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.name is string
+        && data.name.size() > 2
+        && data.description is string
+        && data.description.size() > 10
+        && data.landmark is string
+        && data.address is string
+        && data.address.size() > 5
+        && data.area is string
+        && data.area.size() > 1
+        && data.contactNumber is string
+        && data.contactNumber.size() > 6
+        && data.website is string
+        && data.sourceLabel is string
+        && data.sourceLabel.size() > 2
+        && data.totalRooms is int
+        && data.totalRooms > 0
+        && data.availableRooms is int
+        && data.availableRooms >= 0
+        && data.availableRooms <= data.totalRooms
+        && hasValidLocation(data.location)
+        && hasCoordinatesIfPresent(data)
+        && hasValidRoomTypes(data.roomTypes)
+        && hasValidStatus(data.status)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCreate(data) {
+      return request.auth != null
+        && hasValidHospitalPayload(data)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUpdate(data) {
+      return request.auth != null
+        && hasValidHospitalPayload(data)
+        && data.createdAt == resource.data.createdAt;
+    }
+
+    match /hospitals/{hospitalId} {
+      allow read: if true;
+      allow create: if isValidCreate(request.resource.data);
+      allow update: if isValidUpdate(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /facilities/{facilityId} {
+      allow read: if true;
+      allow create: if isValidCreate(request.resource.data);
+      allow update: if isValidUpdate(request.resource.data);
+      allow delete: if false;
+    }
+  }
+}
