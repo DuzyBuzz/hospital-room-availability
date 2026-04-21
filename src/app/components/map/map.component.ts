@@ -15,7 +15,7 @@ import {
 import type {
   Circle,
   CircleMarker,
-  DivIcon,
+  Icon,
   LatLngExpression,
   LeafletMouseEvent,
   Map as LeafletMap,
@@ -27,6 +27,10 @@ import { MapService } from '../../core/services/map.service';
 import type { Coordinates, HospitalRecord, HospitalStatus } from '../../models/hospital.model';
 import { getHospitalStatusMeta, HOSPITAL_STATUS_OPTIONS } from '../../shared/utils/hospital-status.util';
 import { loadLeaflet } from '../../shared/utils/leaflet-loader.util';
+
+const LEAFLET_MARKER_ICON_URL = new URL('leaflet/dist/images/marker-icon.png', import.meta.url).toString();
+const LEAFLET_MARKER_ICON_RETINA_URL = new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).toString();
+const LEAFLET_MARKER_SHADOW_URL = new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).toString();
 
 @Component({
   selector: 'app-map',
@@ -311,6 +315,7 @@ export class MapComponent {
       marker.setLatLng([hospital.location.lat, hospital.location.lng] as LatLngExpression);
       marker.setPopupContent(this.buildPopupMarkup(hospital));
       marker.setIcon(this.createMarkerIcon(hospital.status, hospital.id === this.selectedHospitalId()));
+      marker.setZIndexOffset(hospital.id === this.selectedHospitalId() ? 400 : 0);
 
       if (!this.map.hasLayer(marker)) {
         marker.addTo(this.map);
@@ -337,6 +342,8 @@ export class MapComponent {
 
     const marker = this.leaflet!.marker([hospital.location.lat, hospital.location.lng] as LatLngExpression, {
       icon: this.createMarkerIcon(hospital.status, hospital.id === this.selectedHospitalId()),
+      riseOnHover: true,
+      riseOffset: 280,
     })
       .bindPopup(this.buildPopupMarkup(hospital), {
         autoPanPadding: [24, 24],
@@ -390,6 +397,7 @@ export class MapComponent {
       this.draftMarker = this.leaflet
         .marker([draftLocation.lat, draftLocation.lng] as LatLngExpression, {
           icon: this.createDraftMarkerIcon(),
+          zIndexOffset: 500,
         })
         .bindPopup(
           '<div style="font-family: Manrope, sans-serif; font-size: 13px; color: #0f172a;"><strong>🚩 New facility pin</strong><br/>Place the flag where visitors should find the entrance or admissions point.</div>',
@@ -526,25 +534,16 @@ export class MapComponent {
     }
   }
 
-  private createMarkerIcon(status: HospitalStatus, isSelected: boolean): DivIcon {
-    const statusMeta = getHospitalStatusMeta(status);
-
-    const markerMarkup = `
-      <span class="hospital-marker-pin${isSelected ? ' hospital-marker-pin--selected' : ''}" style="--hospital-marker-accent: ${statusMeta.accent};" aria-hidden="true">
-        <span class="hospital-marker-pin__surface">
-          <span class="hospital-marker-pin__center">
-            <span class="hospital-marker-pin__cross"></span>
-          </span>
-        </span>
-      </span>
-    `;
-
-    return this.leaflet!.divIcon({
-      html: markerMarkup,
-      className: `hospital-marker-icon${isSelected ? ' hospital-marker-icon--selected' : ''}`,
-      iconSize: [40, 52],
-      iconAnchor: [20, 46],
-      popupAnchor: [0, -40],
+  private createMarkerIcon(_status: HospitalStatus, _isSelected: boolean): Icon {
+    return this.leaflet!.icon({
+      iconUrl: LEAFLET_MARKER_ICON_URL,
+      iconRetinaUrl: LEAFLET_MARKER_ICON_RETINA_URL,
+      shadowUrl: LEAFLET_MARKER_SHADOW_URL,
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      tooltipAnchor: [16, -28],
+      shadowSize: [41, 41],
     });
   }
 
@@ -559,21 +558,16 @@ export class MapComponent {
     `;
   }
 
-  private createDraftMarkerIcon(): DivIcon {
-    const svgMarkup = `
-      <svg class="hospital-marker-icon__svg hospital-marker-icon__svg--draft" width="42" height="54" viewBox="0 0 42 54" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M17 7V39" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
-        <path d="M18 8C23 4.5 28.5 10.5 33 7V19C28.5 22.5 23 16.5 18 20V8Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
-        <circle cx="17" cy="40" r="4.5" fill="#ffffff" stroke="#334155" stroke-width="2.2"/>
-      </svg>
-    `;
-
-    return this.leaflet!.divIcon({
-      html: svgMarkup,
-      className: 'hospital-marker-icon hospital-marker-icon--draft',
-      iconSize: [42, 54],
-      iconAnchor: [21, 44],
-      popupAnchor: [0, -34],
+  private createDraftMarkerIcon(): Icon {
+    return this.leaflet!.icon({
+      iconUrl: LEAFLET_MARKER_ICON_URL,
+      iconRetinaUrl: LEAFLET_MARKER_ICON_RETINA_URL,
+      shadowUrl: LEAFLET_MARKER_SHADOW_URL,
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      tooltipAnchor: [16, -28],
+      shadowSize: [41, 41],
     });
   }
 

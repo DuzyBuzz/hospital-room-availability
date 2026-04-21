@@ -103,7 +103,6 @@ export class FacilityDashboardComponent {
         this.mapService.clearDraftLocation();
         this.mapService.setMapNotice('Sign in to update this listing, or keep browsing the map.');
       },
-      { allowSignalWrites: true },
     );
 
     effect(
@@ -126,7 +125,6 @@ export class FacilityDashboardComponent {
 
         this.pendingEntryMode.set(null);
       },
-      { allowSignalWrites: true },
     );
 
     effect(
@@ -137,7 +135,6 @@ export class FacilityDashboardComponent {
 
         this.closeEntryModal();
       },
-      { allowSignalWrites: true },
     );
   }
 
@@ -174,7 +171,7 @@ export class FacilityDashboardComponent {
   protected startNewEntry(): void {
     if (!this.authService.isAuthenticated()) {
       this.pendingEntryMode.set('create');
-      this.authService.openModal('signIn');
+      this.authService.openModal('signUp');
       return;
     }
 

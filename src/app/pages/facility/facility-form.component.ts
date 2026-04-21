@@ -127,7 +127,6 @@ export class FacilityFormComponent {
         this.mapPickerOpen.set(false);
         this.lastPatchedHospitalId.set(nextHospitalId);
       },
-      { allowSignalWrites: true },
     );
   }
 

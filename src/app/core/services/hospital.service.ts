@@ -158,7 +158,6 @@ export class HospitalService {
           this.selectedHospitalId.set(preferredCollection[0]?.id ?? null);
         }
       },
-      { allowSignalWrites: true },
     );
   }
 
@@ -292,7 +291,7 @@ export class HospitalService {
         return editingHospital.id;
       }
 
-      const hospitalId = await this.firestoreService.addDocument('hospitals', {
+      const hospitalId = await this.firestoreService.addDocument('facilities', {
         ...payload,
         createdAt: serverTimestamp(),
       });
@@ -450,11 +449,52 @@ export class HospitalService {
   }
 
   private humanizeFirestoreError(error: unknown): string {
-    const message = error instanceof Error ? error.message : 'We could not save your changes right now.';
+    const errorCode = this.readFirebaseErrorCode(error);
+
+    switch (errorCode) {
+      case 'permission-denied':
+        return 'Firestore rejected this write. Check your Firestore rules for facilities and hospitals.';
+      case 'unauthenticated':
+        return 'The database rejected the request because the current write is not allowed.';
+      case 'unavailable':
+        return 'Firestore is temporarily unavailable. Try again in a moment.';
+      case 'failed-precondition':
+        return 'Firestore rejected the request because the database rules or indexes are not ready.';
+      case 'invalid-argument':
+        return 'The facility data sent to Firestore is invalid. Check the form values and try again.';
+      case 'not-found':
+        return 'The facility you are trying to update no longer exists.';
+      case 'resource-exhausted':
+        return 'The Firebase project quota was reached. Try again later.';
+      case 'deadline-exceeded':
+        return 'The Firestore request timed out. Try again.';
+      default:
+        return this.sanitizeFirebaseMessage(error, 'We could not save your changes right now.');
+    }
+  }
+
+  private readFirebaseErrorCode(error: unknown): string | null {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      typeof error['code'] === 'string'
+    ) {
+      return error['code'];
+    }
+
+    return null;
+  }
+
+  private sanitizeFirebaseMessage(error: unknown, fallback: string): string {
+    const message = error instanceof Error ? error.message : fallback;
 
     return message
       .replace('FirebaseError: ', '')
       .replace('Firebase: ', '')
-      .replaceAll('-', ' ');
+      .replace(/\((auth|firestore)\//g, '(')
+      .replace(').', '.')
+      .replaceAll('-', ' ')
+      .replace(/\b\w/g, (character) => character.toUpperCase());
   }
 }

@@ -3,7 +3,9 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   onSnapshot,
+  setDoc,
   updateDoc,
   type DocumentData,
 } from 'firebase/firestore';
@@ -43,6 +45,20 @@ export class FirestoreService {
     const documentReference = await addDoc(collection(this.firestore, path), payload);
 
     return documentReference.id;
+  }
+
+  async getDocument<T extends DocumentData>(path: string, id: string): Promise<T | null> {
+    if (!this.shouldUseFirestore()) {
+      return null;
+    }
+
+    const snapshot = await getDoc(doc(this.firestore, path, id));
+
+    return snapshot.exists() ? (snapshot.data() as T) : null;
+  }
+
+  async setDocument(path: string, id: string, payload: Record<string, unknown>): Promise<void> {
+    await setDoc(doc(this.firestore, path, id), payload);
   }
 
   async updateDocument(

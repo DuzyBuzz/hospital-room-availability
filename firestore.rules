@@ -23,6 +23,7 @@ service cloud.firestore {
     function hasValidHospitalPayload(data) {
       return data.keys().hasAll([
           'name',
+          'category',
           'description',
           'location',
           'landmark',
@@ -39,6 +40,7 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'name',
+          'category',
           'description',
           'location',
           'coordinates',
@@ -57,6 +59,8 @@ service cloud.firestore {
         ])
         && data.name is string
         && data.name.size() > 2
+        && data.category is string
+        && data.category.size() > 1
         && data.description is string
         && data.description.size() > 10
         && data.landmark is string
@@ -81,16 +85,48 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function hasValidUserPayload(data) {
+      return data.keys().hasAll([
+          'displayName',
+          'email',
+          'normalizedEmail',
+          'passwordHash',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'displayName',
+          'email',
+          'normalizedEmail',
+          'passwordHash',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.displayName is string
+        && data.displayName.size() > 1
+        && data.email is string
+        && data.email.size() > 5
+        && data.normalizedEmail is string
+        && data.normalizedEmail.size() > 5
+        && data.normalizedEmail.matches('^[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$')
+        && data.passwordHash is string
+        && data.passwordHash.size() >= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     function isValidCreate(data) {
-      return request.auth != null
-        && hasValidHospitalPayload(data)
+      return hasValidHospitalPayload(data)
         && data.createdAt is timestamp;
     }
 
     function isValidUpdate(data) {
-      return request.auth != null
-        && hasValidHospitalPayload(data)
+      return hasValidHospitalPayload(data)
         && data.createdAt == resource.data.createdAt;
+    }
+
+    function isValidUserCreate(data) {
+      return hasValidUserPayload(data);
     }
 
     match /hospitals/{hospitalId} {
@@ -105,6 +141,13 @@ service cloud.firestore {
       allow create: if isValidCreate(request.resource.data);
       allow update: if isValidUpdate(request.resource.data);
       allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isValidUserCreate(request.resource.data);
+      allow update, delete: if false;
     }
   }
 }

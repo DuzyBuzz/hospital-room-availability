@@ -123,25 +123,15 @@ export class MapPreviewComponent {
   }
 
   private createMarkerIcon(): Icon {
-    const svgMarkup = `
-      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="previewMarkerShadow" x="0" y="0" width="30" height="30" filterUnits="userSpaceOnUse">
-            <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#0f172a" flood-opacity="0.25"/>
-          </filter>
-        </defs>
-        <g filter="url(#previewMarkerShadow)">
-          <circle cx="15" cy="15" r="7" fill="#ef4444" stroke="#ffffff" stroke-width="3"/>
-          <circle cx="15" cy="15" r="2.2" fill="#ffffff"/>
-        </g>
-      </svg>
-    `;
-
     return this.leaflet!.icon({
-      iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarkup)}`,
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-      popupAnchor: [0, -14],
+      iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).toString(),
+      iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).toString(),
+      shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).toString(),
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      tooltipAnchor: [16, -28],
+      shadowSize: [41, 41],
     });
   }
 

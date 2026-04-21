@@ -79,7 +79,6 @@ export class AuthModalComponent {
           this.form.controls.confirmPassword.setValue('');
         }
       },
-      { allowSignalWrites: true },
     );
   }
 
