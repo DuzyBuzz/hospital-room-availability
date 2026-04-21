@@ -235,7 +235,7 @@ export class HospitalService {
 
     if (!this.authService.isAuthenticated()) {
       this.saving.set(false);
-      this.errorMessage.set('Sign in to add or update a hospital facility listing.');
+      this.errorMessage.set('Sign in to add or update a medical facility listing.');
       return null;
     }
 
@@ -249,7 +249,7 @@ export class HospitalService {
 
     if (!formValue.location) {
       this.saving.set(false);
-      this.errorMessage.set('Click on the map to choose the exact hospital facility location.');
+      this.errorMessage.set('Click on the map to choose the exact medical facility location.');
       return null;
     }
 
@@ -314,7 +314,7 @@ export class HospitalService {
   ): HospitalDraft {
     return {
       name: formValue.name.trim(),
-      category: formValue.category.trim() || 'Hospital',
+      category: formValue.category.trim() || 'Medical Facility',
       description: formValue.description.trim(),
       location: formValue.location!,
       landmark: formValue.landmark.trim(),
@@ -345,8 +345,8 @@ export class HospitalService {
     return {
       id,
       collectionPath,
-      name: this.readString(data['name']) || 'Unnamed Hospital',
-      category: this.readString(data['category']) || 'Hospital',
+      name: this.readString(data['name']) || 'Unnamed Medical Facility',
+      category: this.readString(data['category']) || 'Medical Facility',
       description: this.readString(data['description']) || 'No description provided yet.',
       location: this.readLocation(data['location'] ?? data['coordinates']),
       landmark: this.readString(data['landmark']),
@@ -363,7 +363,7 @@ export class HospitalService {
       sourceLabel:
         this.readString(data['sourceLabel']) ||
         this.readString(data['ownerName']) ||
-        (collectionPath === 'hospitals' ? 'Hospital team update' : 'Directory update'),
+        (collectionPath === 'hospitals' ? 'Medical team update' : 'Directory update'),
     };
   }
 
@@ -374,7 +374,7 @@ export class HospitalService {
 
     const displayName = this.authService.displayName().trim();
 
-    return displayName.length > 0 ? `${displayName} update` : 'Hospital team update';
+    return displayName.length > 0 ? `${displayName} update` : 'Medical team update';
   }
 
   private readLocation(value: unknown): Coordinates {

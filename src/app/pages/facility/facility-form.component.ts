@@ -5,11 +5,17 @@ import type { Coordinates, HospitalRecord, HospitalStatus } from '../../models/h
 import type { HospitalFormValue } from '../../shared/interfaces/hospital-form.interface';
 import type { HospitalStatusOption } from '../../shared/utils/hospital-status.util';
 
-const HOSPITAL_CATEGORY_OPTIONS = [
+const MEDICAL_CATEGORY_OPTIONS = [
   'General Hospital',
+  'Clinic',
   'Medical Center',
   'Specialty Hospital',
-  'District Hospital',
+  'Emergency Center',
+  'Diagnostic Center',
+  'Rural Health Unit',
+  'Birthing Center',
+  'Dialysis Center',
+  'Infirmary',
 ] as const;
 
 @Component({
@@ -40,11 +46,11 @@ export class FacilityFormComponent {
   protected readonly categoryOptions = computed(() => {
     const currentCategory = this.hospital()?.category?.trim() ?? '';
 
-    if (currentCategory.length === 0 || HOSPITAL_CATEGORY_OPTIONS.includes(currentCategory as (typeof HOSPITAL_CATEGORY_OPTIONS)[number])) {
-      return [...HOSPITAL_CATEGORY_OPTIONS];
+    if (currentCategory.length === 0 || MEDICAL_CATEGORY_OPTIONS.includes(currentCategory as (typeof MEDICAL_CATEGORY_OPTIONS)[number])) {
+      return [...MEDICAL_CATEGORY_OPTIONS];
     }
 
-    return [currentCategory, ...HOSPITAL_CATEGORY_OPTIONS];
+    return [currentCategory, ...MEDICAL_CATEGORY_OPTIONS];
   });
   protected readonly mapPickerOpen = signal(false);
   protected readonly submitted = signal(false);
@@ -70,7 +76,7 @@ export class FacilityFormComponent {
       ? `${draftLocation.lat.toFixed(5)}, ${draftLocation.lng.toFixed(5)}`
       : this.mapPickerOpen()
         ? 'Tap the preview map to place the marker.'
-        : 'Use the preview map to place the marker for this hospital.';
+        : 'Use the preview map to place the marker for this medical facility.';
   });
 
   constructor() {

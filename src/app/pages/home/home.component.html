@@ -10,7 +10,7 @@
 
       <div class="maps-topbar__copy">
         <p class="maps-topbar__title">Smart Hospital Room Availability in ILOILO</p>
-        <p class="maps-topbar__subtitle">Live room availability across Iloilo City hospital facilities.</p>
+        <p class="maps-topbar__subtitle">Live room availability across Iloilo City medical facilities.</p>
       </div>
     </div>
 
@@ -61,8 +61,8 @@
             type="search"
             [value]="hospitalService.searchTerm()"
             (input)="handleSearchInput($event)"
-            placeholder="Search hospitals..."
-            aria-label="Search hospitals"
+            placeholder="Search medical facilities..."
+            aria-label="Search medical facilities"
           />
         </label>
 
@@ -104,7 +104,7 @@
 
         <div class="maps-sidebar-summary">
           <div>
-            <p class="maps-sidebar-summary__label">Hospitals shown</p>
+            <p class="maps-sidebar-summary__label">Facilities shown</p>
             <p class="maps-sidebar-summary__value">{{ hospitalService.filteredHospitals().length }}</p>
           </div>
 

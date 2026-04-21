@@ -64,7 +64,7 @@ export class FacilityDashboardComponent {
     full: this.hospitalService.statusCount('full'),
   }));
   protected readonly entryModalTitle = computed(() =>
-    this.editingHospital() ? 'Edit hospital facility' : 'Add hospital facility',
+    this.editingHospital() ? 'Edit medical facility' : 'Add medical facility',
   );
 
   constructor() {

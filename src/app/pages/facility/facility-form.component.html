@@ -4,20 +4,20 @@
       <section class="space-y-5 rounded-4xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Core details</p>
-          <h3 class="mt-2 text-xl font-bold tracking-tight text-slate-900">Hospital facility details</h3>
+          <h3 class="mt-2 text-xl font-bold tracking-tight text-slate-900">Medical facility details</h3>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block sm:col-span-2">
-            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Hospital name</span>
-            <input formControlName="name" type="text" autofocus class="gmaps-form-input" placeholder="Enter the hospital facility name" />
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Facility name</span>
+            <input formControlName="name" type="text" autofocus class="gmaps-form-input" placeholder="Enter the medical facility name" />
             @if (shouldShowError(form.controls.name)) {
-              <span class="mt-2 block text-xs font-semibold text-rose-600">Hospital name is required.</span>
+              <span class="mt-2 block text-xs font-semibold text-rose-600">Facility name is required.</span>
             }
           </label>
 
           <label class="block">
-            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Hospital type</span>
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Medical category</span>
             <select formControlName="category" class="gmaps-form-input">
               @for (categoryOption of categoryOptions(); track categoryOption) {
                 <option [value]="categoryOption">{{ categoryOption }}</option>
@@ -93,7 +93,7 @@
           <div class="mt-4 grid gap-4 sm:grid-cols-2">
             <label class="block sm:col-span-2">
               <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Description</span>
-              <textarea formControlName="description" rows="4" class="gmaps-form-input" placeholder="Describe the services, specialties, or public notes for this hospital"></textarea>
+              <textarea formControlName="description" rows="4" class="gmaps-form-input" placeholder="Describe the services, specialties, or public notes for this medical facility"></textarea>
               @if (shouldShowError(form.controls.description)) {
                 <span class="mt-2 block text-xs font-semibold text-rose-600">Add a short description for visitors.</span>
               }
@@ -179,7 +179,7 @@
 
         @if (submitted() && !draftLocation()) {
           <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            Select the hospital marker on the embedded map before submitting.
+            Select the medical facility marker on the embedded map before submitting.
           </div>
         }
 

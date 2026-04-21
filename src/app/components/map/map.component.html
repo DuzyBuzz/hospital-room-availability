@@ -35,12 +35,20 @@
       <button
         type="button"
         class="maps-control-button"
+        [class.maps-control-button--active]="isFollowingUserLocation()"
         (click)="locateUser()"
         aria-label="Locate me"
       >
         <i class="pi pi-send text-sm" aria-hidden="true"></i>
       </button>
     </div>
+
+    @if (hasUserLocation()) {
+      <div class="maps-location-pill" aria-live="polite">
+        <span class="maps-location-pill__dot" aria-hidden="true"></span>
+        <span>{{ liveLocationLabel() }}</span>
+      </div>
+    }
 
     <div class="maps-legend" aria-label="Map legend">
       <p class="maps-legend__title">Availability</p>

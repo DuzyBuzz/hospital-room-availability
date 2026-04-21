@@ -13,17 +13,20 @@ import {
   viewChild,
 } from '@angular/core';
 import type {
+  Circle,
   CircleMarker,
-  Icon,
+  DivIcon,
   LatLngExpression,
   LeafletMouseEvent,
   Map as LeafletMap,
   Marker,
+  Polyline,
   TileLayer,
 } from 'leaflet';
 import { MapService } from '../../core/services/map.service';
 import type { Coordinates, HospitalRecord, HospitalStatus } from '../../models/hospital.model';
 import { getHospitalStatusMeta, HOSPITAL_STATUS_OPTIONS } from '../../shared/utils/hospital-status.util';
+import { loadLeaflet } from '../../shared/utils/leaflet-loader.util';
 
 @Component({
   selector: 'app-map',
@@ -35,18 +38,25 @@ import { getHospitalStatusMeta, HOSPITAL_STATUS_OPTIONS } from '../../shared/uti
 })
 export class MapComponent {
   private readonly destroyRef = inject(DestroyRef);
-  private readonly mapService = inject(MapService);
+  protected readonly mapService = inject(MapService);
 
   private readonly mapCanvas = viewChild.required<ElementRef<HTMLDivElement>>('mapCanvas');
   private readonly markers = new Map<string, Marker>();
-  private readonly userLocation = signal<Coordinates | null>(null);
+  private readonly mapInitialized = signal(false);
+  private resizeObserver?: ResizeObserver;
+  private readonly viewportCleanup: Array<() => void> = [];
 
   private leaflet?: typeof import('leaflet');
   private map?: LeafletMap;
   private tileLayer?: TileLayer;
   private draftMarker?: Marker;
+  private userLocationAccuracyRing?: Circle;
   private userLocationMarker?: CircleMarker;
   private userLocationHalo?: CircleMarker;
+  private routeLine?: Polyline;
+  private geolocationWatchId: number | null = null;
+  private userLocationAccuracyMeters: number | null = null;
+  private hasCenteredOnUserLocation = false;
 
   readonly hospitals = input<HospitalRecord[]>([]);
   readonly selectedHospitalId = input<string | null>(null);
@@ -61,6 +71,11 @@ export class MapComponent {
   readonly locationPicked = output<Coordinates>();
 
   protected readonly isFullDisplay = computed(() => this.displayMode() === 'full');
+  protected readonly hasUserLocation = computed(() => this.mapService.userLocation() !== null);
+  protected readonly isFollowingUserLocation = signal(false);
+  protected readonly liveLocationLabel = computed(() =>
+    this.isFollowingUserLocation() ? 'Following your live location' : 'Live location on map',
+  );
   protected readonly statusOptions = HOSPITAL_STATUS_OPTIONS;
 
   constructor() {
@@ -69,18 +84,33 @@ export class MapComponent {
     });
 
     effect(() => {
+      this.mapInitialized();
+      this.hospitals();
+      this.selectedHospitalId();
       this.syncMarkers();
     });
 
     effect(() => {
+      this.mapInitialized();
+      this.allowLocationSelection();
+      this.draftLocation();
       this.syncDraftMarker();
     });
 
     effect(() => {
+      this.mapInitialized();
+      this.mapService.userLocation();
       this.syncUserLocationMarker();
     });
 
     effect(() => {
+      this.mapInitialized();
+      this.mapService.activeRoute();
+      this.syncRouteLine();
+    });
+
+    effect(() => {
+      this.mapInitialized();
       const draftLocation = this.draftLocation();
 
       if (!this.map || !draftLocation || !this.allowLocationSelection()) {
@@ -94,7 +124,9 @@ export class MapComponent {
     });
 
     effect(() => {
+      this.mapInitialized();
       const selectedHospital = this.selectedHospital();
+      const userLocation = this.mapService.userLocation();
 
       if (!this.map || !selectedHospital) {
         return;
@@ -107,14 +139,52 @@ export class MapComponent {
       }
 
       this.refreshMarkerIcons();
-      this.map.flyTo([selectedHospital.location.lat, selectedHospital.location.lng] as LatLngExpression, 14.4, {
-        animate: true,
-        duration: 0.8,
-      });
+
+      if (userLocation && this.leaflet && this.isFullDisplay()) {
+        const selectionBounds = this.leaflet.latLngBounds([
+          [selectedHospital.location.lat, selectedHospital.location.lng] as [number, number],
+          [userLocation.lat, userLocation.lng] as [number, number],
+        ]);
+
+        this.map.flyToBounds(selectionBounds, {
+          animate: true,
+          duration: 0.8,
+          maxZoom: 14.8,
+          padding: [72, 72],
+        });
+      } else {
+        this.map.flyTo([selectedHospital.location.lat, selectedHospital.location.lng] as LatLngExpression, 14.4, {
+          animate: true,
+          duration: 0.8,
+        });
+      }
+
       marker.openPopup();
     });
 
+    effect(() => {
+      const selectedHospital = this.selectedHospital();
+      const userLocation = this.mapService.userLocation();
+
+      if (!selectedHospital || !this.isFullDisplay() || !userLocation) {
+        this.mapService.clearRoute();
+        return;
+      }
+
+      void this.mapService.updateRouteToHospital(selectedHospital);
+    });
+
     this.destroyRef.onDestroy(() => {
+      this.resizeObserver?.disconnect();
+
+      for (const cleanup of this.viewportCleanup) {
+        cleanup();
+      }
+
+      if (this.geolocationWatchId !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(this.geolocationWatchId);
+      }
+
       this.map?.remove();
     });
   }
@@ -156,7 +226,15 @@ export class MapComponent {
   }
 
   public locateUser(): void {
-    this.requestUserLocation(true);
+    this.isFollowingUserLocation.set(true);
+    this.hasCenteredOnUserLocation = false;
+    this.startUserLocationTracking();
+
+    const userLocation = this.mapService.userLocation();
+
+    if (userLocation) {
+      this.followUserLocation(userLocation, true);
+    }
   }
 
   public zoomIn(): void {
@@ -172,7 +250,7 @@ export class MapComponent {
       return;
     }
 
-    this.leaflet = await import('leaflet');
+    this.leaflet = await loadLeaflet();
 
     const mapContainer = this.mapCanvas().nativeElement;
 
@@ -183,6 +261,10 @@ export class MapComponent {
       attributionControl: this.displayMode() !== 'preview',
       preferCanvas: true,
     });
+
+    const routePane = this.map.createPane('routePane');
+    routePane.style.zIndex = '350';
+    routePane.style.pointerEvents = 'none';
 
     const tileSource = this.getTileSource();
 
@@ -206,14 +288,14 @@ export class MapComponent {
       });
     });
 
-    this.syncMarkers();
-    this.syncDraftMarker();
+    this.registerResponsiveInvalidation();
+    this.registerFollowModeInterruption();
 
-    queueMicrotask(() => {
-      this.map?.invalidateSize();
-    });
+    this.mapInitialized.set(true);
 
-    this.requestUserLocation(false);
+    this.scheduleMapInvalidation();
+
+    this.startUserLocationTracking();
   }
 
   private syncMarkers(): void {
@@ -331,12 +413,42 @@ export class MapComponent {
       return;
     }
 
-    const userLocation = this.userLocation();
+    const userLocation = this.mapService.userLocation();
 
     if (!userLocation) {
+      this.userLocationAccuracyRing?.remove();
       this.userLocationHalo?.remove();
       this.userLocationMarker?.remove();
       return;
+    }
+
+    const showAccuracyRing =
+      typeof this.userLocationAccuracyMeters === 'number' &&
+      Number.isFinite(this.userLocationAccuracyMeters) &&
+      this.userLocationAccuracyMeters <= 500;
+
+    if (showAccuracyRing) {
+      if (!this.userLocationAccuracyRing) {
+        this.userLocationAccuracyRing = this.leaflet.circle(
+          [userLocation.lat, userLocation.lng] as LatLngExpression,
+          {
+            radius: Math.max(this.userLocationAccuracyMeters ?? 0, 18),
+            stroke: false,
+            fillColor: '#60a5fa',
+            fillOpacity: 0.1,
+            interactive: false,
+          },
+        );
+      }
+
+      this.userLocationAccuracyRing.setLatLng([userLocation.lat, userLocation.lng] as LatLngExpression);
+      this.userLocationAccuracyRing.setRadius(Math.max(this.userLocationAccuracyMeters ?? 0, 18));
+
+      if (!this.map.hasLayer(this.userLocationAccuracyRing)) {
+        this.userLocationAccuracyRing.addTo(this.map);
+      }
+    } else {
+      this.userLocationAccuracyRing?.remove();
     }
 
     if (!this.userLocationHalo) {
@@ -357,11 +469,18 @@ export class MapComponent {
         fillColor: '#2563eb',
         fillOpacity: 1,
         interactive: false,
+      }).bindTooltip(this.buildUserLocationTooltip(), {
+        className: 'user-location-tooltip',
+        direction: 'top',
+        offset: [0, -10],
+        opacity: 1,
+        permanent: this.isFullDisplay(),
       });
     }
 
     this.userLocationHalo.setLatLng([userLocation.lat, userLocation.lng] as LatLngExpression);
     this.userLocationMarker.setLatLng([userLocation.lat, userLocation.lng] as LatLngExpression);
+    this.userLocationMarker.setTooltipContent(this.buildUserLocationTooltip());
 
     if (!this.map.hasLayer(this.userLocationHalo)) {
       this.userLocationHalo.addTo(this.map);
@@ -370,33 +489,61 @@ export class MapComponent {
     if (!this.map.hasLayer(this.userLocationMarker)) {
       this.userLocationMarker.addTo(this.map);
     }
+
+    this.userLocationHalo.bringToFront();
+    this.userLocationMarker.bringToFront();
   }
 
-  private createMarkerIcon(status: HospitalStatus, isSelected: boolean): Icon {
-    const statusMeta = getHospitalStatusMeta(status);
-    const outerStroke = isSelected ? '#0f172a' : '#ffffff';
-    const strokeWidth = isSelected ? 3 : 2.4;
-    const innerCircleFill = isSelected ? '#dbeafe' : '#ffffff';
+  private syncRouteLine(): void {
+    if (!this.map || !this.leaflet) {
+      return;
+    }
 
-    const svgMarkup = `
-      <svg width="36" height="48" viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="markerShadow" x="0" y="0" width="36" height="48" filterUnits="userSpaceOnUse">
-            <feDropShadow dx="0" dy="8" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.24"/>
-          </filter>
-        </defs>
-        <g filter="url(#markerShadow)">
-          <path d="M18 44C18 44 31 29.147 31 18.4C31 10.999 25.18 5 18 5C10.82 5 5 10.999 5 18.4C5 29.147 18 44 18 44Z" fill="${statusMeta.accent}" stroke="${outerStroke}" stroke-width="${strokeWidth}"/>
-          <circle cx="18" cy="18" r="7.5" fill="${innerCircleFill}" fill-opacity="0.97"/>
-          <path d="M18 13.2C18.663 13.2 19.2 13.737 19.2 14.4V16.8H21.6C22.263 16.8 22.8 17.337 22.8 18C22.8 18.663 22.263 19.2 21.6 19.2H19.2V21.6C19.2 22.263 18.663 22.8 18 22.8C17.337 22.8 16.8 22.263 16.8 21.6V19.2H14.4C13.737 19.2 13.2 18.663 13.2 18C13.2 17.337 13.737 16.8 14.4 16.8H16.8V14.4C16.8 13.737 17.337 13.2 18 13.2Z" fill="${statusMeta.accent}"/>
-        </g>
-      </svg>
+    const activeRoute = this.mapService.activeRoute();
+
+    if (!activeRoute || activeRoute.geometry.length < 2) {
+      this.routeLine?.remove();
+      return;
+    }
+
+    const linePoints = activeRoute.geometry.map((point) => [point.lat, point.lng] as [number, number]);
+
+    if (!this.routeLine) {
+      this.routeLine = this.leaflet.polyline(linePoints, {
+        color: '#1d4ed8',
+        weight: 4,
+        opacity: 0.9,
+        pane: 'routePane',
+        lineCap: 'round',
+        lineJoin: 'round',
+      });
+    }
+
+    this.routeLine.setLatLngs(linePoints);
+
+    if (!this.map.hasLayer(this.routeLine)) {
+      this.routeLine.addTo(this.map);
+    }
+  }
+
+  private createMarkerIcon(status: HospitalStatus, isSelected: boolean): DivIcon {
+    const statusMeta = getHospitalStatusMeta(status);
+
+    const markerMarkup = `
+      <span class="hospital-marker-pin${isSelected ? ' hospital-marker-pin--selected' : ''}" style="--hospital-marker-accent: ${statusMeta.accent};" aria-hidden="true">
+        <span class="hospital-marker-pin__surface">
+          <span class="hospital-marker-pin__center">
+            <span class="hospital-marker-pin__cross"></span>
+          </span>
+        </span>
+      </span>
     `;
 
-    return this.leaflet!.icon({
-      iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarkup)}`,
-      iconSize: [36, 48],
-      iconAnchor: [18, 44],
+    return this.leaflet!.divIcon({
+      html: markerMarkup,
+      className: `hospital-marker-icon${isSelected ? ' hospital-marker-icon--selected' : ''}`,
+      iconSize: [40, 52],
+      iconAnchor: [20, 46],
       popupAnchor: [0, -40],
     });
   }
@@ -412,24 +559,18 @@ export class MapComponent {
     `;
   }
 
-  private createDraftMarkerIcon(): Icon {
+  private createDraftMarkerIcon(): DivIcon {
     const svgMarkup = `
-      <svg width="42" height="54" viewBox="0 0 42 54" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="draftShadow" x="2" y="2" width="38" height="50" filterUnits="userSpaceOnUse">
-            <feDropShadow dx="0" dy="8" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.22"/>
-          </filter>
-        </defs>
-        <g filter="url(#draftShadow)">
-          <path d="M17 7V39" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
-          <path d="M18 8C23 4.5 28.5 10.5 33 7V19C28.5 22.5 23 16.5 18 20V8Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
-          <circle cx="17" cy="40" r="4.5" fill="#ffffff" stroke="#334155" stroke-width="2.2"/>
-        </g>
+      <svg class="hospital-marker-icon__svg hospital-marker-icon__svg--draft" width="42" height="54" viewBox="0 0 42 54" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M17 7V39" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+        <path d="M18 8C23 4.5 28.5 10.5 33 7V19C28.5 22.5 23 16.5 18 20V8Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+        <circle cx="17" cy="40" r="4.5" fill="#ffffff" stroke="#334155" stroke-width="2.2"/>
       </svg>
     `;
 
-    return this.leaflet!.icon({
-      iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarkup)}`,
+    return this.leaflet!.divIcon({
+      html: svgMarkup,
+      className: 'hospital-marker-icon hospital-marker-icon--draft',
       iconSize: [42, 54],
       iconAnchor: [21, 44],
       popupAnchor: [0, -34],
@@ -486,32 +627,201 @@ export class MapComponent {
     };
   }
 
-  private requestUserLocation(animate: boolean): void {
+  private buildUserLocationTooltip(): string {
+    if (
+      typeof this.userLocationAccuracyMeters === 'number' &&
+      Number.isFinite(this.userLocationAccuracyMeters) &&
+      this.userLocationAccuracyMeters <= 500
+    ) {
+      return `Your live location • ±${Math.round(this.userLocationAccuracyMeters)} m`;
+    }
+
+    return 'Your live location';
+  }
+
+  private startUserLocationTracking(): void {
     if (!this.map || !('geolocation' in navigator)) {
       return;
     }
 
+    const options = {
+      enableHighAccuracy: true,
+      maximumAge: 5_000,
+      timeout: 12_000,
+    } satisfies PositionOptions;
+
+    if (this.geolocationWatchId === null) {
+      this.geolocationWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+          this.handleUserLocationUpdate(position);
+        },
+        () => {
+          if (!this.mapService.userLocation()) {
+            if (this.geolocationWatchId !== null) {
+              navigator.geolocation.clearWatch(this.geolocationWatchId);
+              this.geolocationWatchId = null;
+            }
+
+            this.isFollowingUserLocation.set(false);
+          }
+        },
+        options,
+      );
+    }
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        } satisfies Coordinates;
-
-        this.userLocation.set(location);
-
-        if (animate) {
-          this.focusLocation(location, 15.4);
-        }
+        this.handleUserLocationUpdate(position);
       },
       () => {
         // Ignore geolocation failures and keep the default Iloilo view.
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 60_000,
-        timeout: 8_000,
-      },
+      options,
     );
+  }
+
+  private handleUserLocationUpdate(position: GeolocationPosition): void {
+    const hadUserLocation = this.mapService.userLocation() !== null;
+    const location = {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude,
+    } satisfies Coordinates;
+
+    this.userLocationAccuracyMeters = position.coords.accuracy;
+    this.mapService.setUserLocation(location);
+
+    if (!hadUserLocation && this.isFullDisplay()) {
+      this.isFollowingUserLocation.set(true);
+      this.hasCenteredOnUserLocation = false;
+      this.followUserLocation(location, true);
+      return;
+    }
+
+    if (this.isFollowingUserLocation()) {
+      this.followUserLocation(location);
+    }
+  }
+
+  private followUserLocation(location: Coordinates, forceZoom = false): void {
+    if (!this.map) {
+      return;
+    }
+
+    const nextCenter = [location.lat, location.lng] as LatLngExpression;
+
+    if (!this.hasCenteredOnUserLocation || forceZoom || this.map.getZoom() < 15.6) {
+      this.hasCenteredOnUserLocation = true;
+      this.map.flyTo(nextCenter, Math.max(this.map.getZoom(), 15.8), {
+        animate: true,
+        duration: 0.7,
+      });
+      return;
+    }
+
+    this.map.panTo(nextCenter, {
+      animate: true,
+      duration: 0.55,
+    });
+  }
+
+  private registerFollowModeInterruption(): void {
+    if (!this.map || typeof window === 'undefined') {
+      return;
+    }
+
+    const mapCanvas = this.mapCanvas().nativeElement;
+    const stopFollowing = () => {
+      if (!this.isFollowingUserLocation()) {
+        return;
+      }
+
+      this.isFollowingUserLocation.set(false);
+      this.hasCenteredOnUserLocation = false;
+    };
+
+    const registerInteraction = (eventName: 'pointerdown' | 'wheel' | 'mousedown' | 'touchstart') => {
+      const handler = () => {
+        stopFollowing();
+      };
+
+      mapCanvas.addEventListener(eventName, handler, { passive: true });
+      this.viewportCleanup.push(() => {
+        mapCanvas.removeEventListener(eventName, handler);
+      });
+    };
+
+    registerInteraction('pointerdown');
+    registerInteraction('wheel');
+
+    if (typeof PointerEvent === 'undefined') {
+      registerInteraction('mousedown');
+      registerInteraction('touchstart');
+    }
+  }
+
+  private registerResponsiveInvalidation(): void {
+    if (!this.map || typeof window === 'undefined') {
+      return;
+    }
+
+    const invalidateMap = () => {
+      this.scheduleMapInvalidation();
+    };
+    const mapCanvas = this.mapCanvas().nativeElement;
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = new ResizeObserver(() => {
+        invalidateMap();
+      });
+      this.resizeObserver.observe(mapCanvas);
+    }
+
+    const registerListener = (
+      target: Pick<Window, 'addEventListener' | 'removeEventListener'>,
+      eventName: 'resize' | 'orientationchange' | 'scroll',
+    ) => {
+      const handler = () => {
+        invalidateMap();
+      };
+
+      target.addEventListener(eventName, handler, { passive: true });
+      this.viewportCleanup.push(() => {
+        target.removeEventListener(eventName, handler);
+      });
+    };
+
+    registerListener(window, 'resize');
+    registerListener(window, 'orientationchange');
+
+    if (window.visualViewport) {
+      registerListener(window.visualViewport, 'resize');
+      registerListener(window.visualViewport, 'scroll');
+    }
+  }
+
+  private scheduleMapInvalidation(): void {
+    if (!this.map || typeof window === 'undefined') {
+      return;
+    }
+
+    const invalidate = () => {
+      if (!this.map) {
+        return;
+      }
+
+      this.map.invalidateSize({
+        pan: false,
+        debounceMoveend: true,
+      });
+    };
+
+    queueMicrotask(invalidate);
+    window.requestAnimationFrame(() => {
+      invalidate();
+    });
+    window.setTimeout(() => {
+      invalidate();
+    }, 180);
   }
 }

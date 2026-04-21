@@ -19,8 +19,8 @@
         type="search"
         [value]="hospitalService.searchTerm()"
         (input)="updateSearchTerm(($any($event.target).value ?? '').toString())"
-        placeholder="Search hospitals..."
-        aria-label="Search hospitals"
+        placeholder="Search medical facilities..."
+        aria-label="Search medical facilities"
       />
       <button type="button" class="gmaps-search-icon" aria-label="Voice search">
         <i class="pi pi-microphone" aria-hidden="true"></i>
@@ -31,17 +31,7 @@
   <div class="gmaps-chip-row" aria-label="Quick filters">
     <button type="button" class="gmaps-chip" (click)="showAllHospitals()">
       <i class="pi pi-building-columns" aria-hidden="true"></i>
-      <span>All hospitals</span>
-    </button>
-
-    <button
-      type="button"
-      class="gmaps-chip"
-      [class.gmaps-chip--active]="hospitalService.searchTerm().trim().length === 0"
-      (click)="showAllHospitals()"
-    >
-      <i class="pi pi-building-columns" aria-hidden="true"></i>
-      <span>Hospitals</span>
+      <span>All medical facilities</span>
     </button>
 
     <button
@@ -79,11 +69,11 @@
     <div class="gmaps-side-panel__header">
       <div>
         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Contribute</p>
-        <h1 class="mt-2 text-2xl font-bold tracking-tight text-slate-900">Manage hospital facilities</h1>
+        <h1 class="mt-2 text-2xl font-bold tracking-tight text-slate-900">Manage medical facilities</h1>
       </div>
 
       @if (authService.isAuthenticated()) {
-        <button type="button" class="gmaps-mini-action" (click)="startNewEntry()">Add hospital</button>
+        <button type="button" class="gmaps-mini-action" (click)="startNewEntry()">Add facility</button>
       } @else {
         <button type="button" class="gmaps-mini-action" (click)="openSignInModal()">Sign in</button>
       }
@@ -110,7 +100,7 @@
       @if (!authService.isAuthenticated()) {
         <div class="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <p class="font-semibold">Sign in required for edits</p>
-          <p class="mt-1">Browsing stays public. Sign in when you want to add or update a hospital facility.</p>
+          <p class="mt-1">Browsing stays public. Sign in when you want to add or update a medical facility.</p>
         </div>
       }
 
@@ -142,7 +132,7 @@
             (click)="startNewEntry()"
             class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Add hospital
+            Add facility
           </button>
         }
       </div>
@@ -172,11 +162,11 @@
     <div class="gmaps-mobile-sheet__header">
       <div>
         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">Contribute</p>
-        <h2 class="mt-1 text-xl font-bold tracking-tight text-white">Hospital details</h2>
+        <h2 class="mt-1 text-xl font-bold tracking-tight text-white">Facility details</h2>
       </div>
 
       @if (authService.isAuthenticated()) {
-        <button type="button" class="gmaps-mobile-sheet__action" (click)="startNewEntry()">Add hospital</button>
+        <button type="button" class="gmaps-mobile-sheet__action" (click)="startNewEntry()">Add facility</button>
       } @else {
         <button type="button" class="gmaps-mobile-sheet__action" (click)="openSignInModal()">Sign in</button>
       }
@@ -196,7 +186,7 @@
     <div class="gmaps-mobile-sheet__body">
       @if (!authService.isAuthenticated()) {
         <div class="rounded-3xl border border-amber-200/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          Sign in to add or update a hospital facility listing.
+          Sign in to add or update a medical facility listing.
         </div>
       }
 
@@ -261,10 +251,10 @@
     <div class="flex h-full min-h-0 flex-col">
       <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 sm:px-8">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Hospital facility</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Medical facility</p>
           <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900">{{ entryModalTitle() }}</h2>
           <p class="mt-2 text-sm leading-6 text-slate-500">
-            Add the public-facing hospital details visitors need, then pin the exact address on the embedded map.
+            Add the public-facing medical details visitors need, then pin the exact address on the embedded map.
           </p>
         </div>
 
@@ -272,7 +262,7 @@
           type="button"
           (click)="closeEntryModal()"
           class="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-          aria-label="Close hospital facility dialog"
+          aria-label="Close medical facility dialog"
         >
           <i class="pi pi-times text-sm" aria-hidden="true"></i>
         </button>

@@ -13,6 +13,7 @@ import {
 import type { Icon, LatLngExpression, LeafletMouseEvent, Map as LeafletMap, Marker } from 'leaflet';
 import { MapService } from '../../core/services/map.service';
 import type { Coordinates } from '../../models/hospital.model';
+import { loadLeaflet } from '../../shared/utils/leaflet-loader.util';
 
 @Component({
   selector: 'app-map-preview',
@@ -27,6 +28,8 @@ export class MapPreviewComponent {
   private readonly mapService = inject(MapService);
 
   private readonly previewCanvas = viewChild.required<ElementRef<HTMLDivElement>>('previewCanvas');
+  private resizeObserver?: ResizeObserver;
+  private readonly viewportCleanup: Array<() => void> = [];
 
   private leaflet?: typeof import('leaflet');
   private map?: LeafletMap;
@@ -45,6 +48,12 @@ export class MapPreviewComponent {
     });
 
     this.destroyRef.onDestroy(() => {
+      this.resizeObserver?.disconnect();
+
+      for (const cleanup of this.viewportCleanup) {
+        cleanup();
+      }
+
       this.map?.remove();
     });
   }
@@ -54,7 +63,7 @@ export class MapPreviewComponent {
       return;
     }
 
-    this.leaflet = await import('leaflet');
+    this.leaflet = await loadLeaflet();
 
     this.map = this.leaflet.map(this.previewCanvas().nativeElement, {
       center: [...this.mapService.initialCenter] as [number, number],
@@ -77,11 +86,10 @@ export class MapPreviewComponent {
       });
     });
 
-    this.syncMarker();
+    this.registerResponsiveInvalidation();
 
-    queueMicrotask(() => {
-      this.map?.invalidateSize();
-    });
+    this.syncMarker();
+    this.scheduleMapInvalidation();
   }
 
   private syncMarker(): void {
@@ -135,5 +143,71 @@ export class MapPreviewComponent {
       iconAnchor: [15, 15],
       popupAnchor: [0, -14],
     });
+  }
+
+  private registerResponsiveInvalidation(): void {
+    if (!this.map || typeof window === 'undefined') {
+      return;
+    }
+
+    const invalidateMap = () => {
+      this.scheduleMapInvalidation();
+    };
+    const previewCanvas = this.previewCanvas().nativeElement;
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = new ResizeObserver(() => {
+        invalidateMap();
+      });
+      this.resizeObserver.observe(previewCanvas);
+    }
+
+    const registerListener = (
+      target: Pick<Window, 'addEventListener' | 'removeEventListener'>,
+      eventName: 'resize' | 'orientationchange' | 'scroll',
+    ) => {
+      const handler = () => {
+        invalidateMap();
+      };
+
+      target.addEventListener(eventName, handler, { passive: true });
+      this.viewportCleanup.push(() => {
+        target.removeEventListener(eventName, handler);
+      });
+    };
+
+    registerListener(window, 'resize');
+    registerListener(window, 'orientationchange');
+
+    if (window.visualViewport) {
+      registerListener(window.visualViewport, 'resize');
+      registerListener(window.visualViewport, 'scroll');
+    }
+  }
+
+  private scheduleMapInvalidation(): void {
+    if (!this.map || typeof window === 'undefined') {
+      return;
+    }
+
+    const invalidate = () => {
+      if (!this.map) {
+        return;
+      }
+
+      this.map.invalidateSize({
+        pan: false,
+        debounceMoveend: true,
+      });
+    };
+
+    queueMicrotask(invalidate);
+    window.requestAnimationFrame(() => {
+      invalidate();
+    });
+    window.setTimeout(() => {
+      invalidate();
+    }, 180);
   }
 }

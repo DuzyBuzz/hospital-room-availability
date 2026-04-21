@@ -33,12 +33,26 @@ a {
 
 .leaflet-container {
 	height: 100%;
+	min-height: 100%;
 	width: 100%;
 	position: relative;
 	z-index: 0;
 	isolation: isolate;
 	font-family: var(--font-sans);
 	background: #e5e7eb;
+	touch-action: pan-x pan-y;
+}
+
+.leaflet-container .leaflet-pane img,
+.leaflet-container .leaflet-control img,
+.leaflet-container .leaflet-tile,
+.leaflet-container .leaflet-marker-icon,
+.leaflet-container .leaflet-marker-shadow,
+.leaflet-container img.leaflet-image-layer,
+.leaflet-container svg,
+.leaflet-container canvas {
+	max-width: none !important;
+	max-height: none !important;
 }
 
 .leaflet-control-zoom {
@@ -129,9 +143,138 @@ a {
 	color: #64748b;
 }
 
+.leaflet-tooltip.user-location-tooltip {
+	padding: 0 !important;
+	border: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+.leaflet-tooltip.user-location-tooltip::before {
+	display: none !important;
+}
+
+.leaflet-div-icon.hospital-marker-icon,
+.leaflet-div-icon.hospital-marker-icon--draft {
+	background: transparent !important;
+	border: 0 !important;
+	margin: 0 !important;
+}
+
+.hospital-marker-pin {
+	position: relative;
+	display: inline-flex;
+	height: 52px;
+	width: 40px;
+	align-items: flex-start;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.hospital-marker-pin__surface {
+	position: relative;
+	display: inline-flex;
+	height: 34px;
+	width: 34px;
+	align-items: center;
+	justify-content: center;
+	border: 3px solid #ffffff;
+	border-radius: 999px 999px 999px 0;
+	background: var(--hospital-marker-accent, #0284c7);
+	transform: rotate(-45deg);
+	box-shadow: 0 12px 20px -14px rgba(15, 23, 42, 0.5);
+}
+
+.hospital-marker-pin--selected .hospital-marker-pin__surface {
+	border-color: #0f172a;
+	box-shadow: 0 16px 24px -12px rgba(15, 23, 42, 0.58);
+}
+
+.hospital-marker-pin__center {
+	position: relative;
+	display: inline-flex;
+	height: 15px;
+	width: 15px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 999px;
+	background: #ffffff;
+	transform: rotate(45deg);
+}
+
+.hospital-marker-pin--selected .hospital-marker-pin__center {
+	background: #dbeafe;
+}
+
+.hospital-marker-pin__cross {
+	position: relative;
+	display: inline-flex;
+	height: 10px;
+	width: 10px;
+	align-items: center;
+	justify-content: center;
+}
+
+.hospital-marker-pin__cross::before,
+.hospital-marker-pin__cross::after {
+	position: absolute;
+	content: '';
+	border-radius: 999px;
+	background: var(--hospital-marker-accent, #0284c7);
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+}
+
+.hospital-marker-pin__cross::before {
+	height: 3px;
+	width: 10px;
+}
+
+.hospital-marker-pin__cross::after {
+	height: 10px;
+	width: 3px;
+}
+
+.hospital-marker-icon__svg {
+	display: block;
+	overflow: visible;
+	filter: drop-shadow(0 10px 14px rgba(15, 23, 42, 0.26));
+}
+
+.hospital-marker-icon--selected .hospital-marker-icon__svg {
+	filter: drop-shadow(0 12px 18px rgba(15, 23, 42, 0.34));
+}
+
+.hospital-marker-icon--draft .hospital-marker-icon__svg,
+.hospital-marker-icon__svg--draft {
+	filter: drop-shadow(0 10px 14px rgba(15, 23, 42, 0.22));
+}
+
+.user-location-tooltip {
+	white-space: nowrap;
+}
+
+.user-location-tooltip .leaflet-tooltip-content {
+	margin: 0 !important;
+	border-radius: 999px;
+	background: #0f172a;
+	padding: 0.38rem 0.7rem;
+	font-size: 0.72rem;
+	font-weight: 700;
+	line-height: 1;
+	color: #ffffff;
+	box-shadow: 0 16px 30px -22px rgba(15, 23, 42, 0.42);
+}
+
 .gmaps-page {
 	position: relative;
-	width: 100vw;
+	width: 100%;
+	min-height: 100vh;
+	min-height: 100svh;
+	min-height: 100dvh;
+	height: 100vh;
+	height: 100svh;
 	height: 100dvh;
 	overflow: hidden;
 	background: #0f172a;
@@ -154,6 +297,7 @@ a {
 	padding: 0.92rem 1rem;
 	color: #e2e8f0;
 	box-shadow: 0 26px 56px -34px rgba(15, 23, 42, 0.72);
+	-webkit-backdrop-filter: blur(16px);
 	backdrop-filter: blur(16px);
 }
 
@@ -198,7 +342,6 @@ a {
 	gap: 0.75rem;
 	overflow-x: auto;
 	padding-bottom: 0.15rem;
-	scrollbar-width: none;
 }
 
 .gmaps-chip-row::-webkit-scrollbar {
@@ -218,6 +361,7 @@ a {
 	font-size: 0.92rem;
 	font-weight: 600;
 	box-shadow: 0 20px 44px -30px rgba(15, 23, 42, 0.74);
+	-webkit-backdrop-filter: blur(14px);
 	backdrop-filter: blur(14px);
 	cursor: pointer;
 	transition:
@@ -272,6 +416,7 @@ a {
 	border: 1px solid rgba(226, 232, 240, 0.92);
 	background: rgba(255, 255, 255, 0.96);
 	box-shadow: 0 36px 100px -54px rgba(15, 23, 42, 0.8);
+	-webkit-backdrop-filter: blur(18px);
 	backdrop-filter: blur(18px);
 	overflow: hidden;
 }
@@ -371,6 +516,7 @@ a {
 	border-radius: 1.9rem 1.9rem 0 0;
 	background: rgba(15, 23, 42, 0.94);
 	box-shadow: 0 -20px 48px -28px rgba(15, 23, 42, 0.92);
+	-webkit-backdrop-filter: blur(18px);
 	backdrop-filter: blur(18px);
 	transition: height 220ms ease;
 	padding-bottom: max(0.8rem, env(safe-area-inset-bottom));
@@ -474,6 +620,7 @@ a {
 }
 
 .gmaps-dialog-mask {
+	-webkit-backdrop-filter: blur(4px);
 	backdrop-filter: blur(4px);
 	background: rgba(15, 23, 42, 0.42) !important;
 }
@@ -542,6 +689,10 @@ textarea.gmaps-form-input {
 	}
 
 	.leaflet-tooltip.hospital-marker-tooltip {
+		display: none !important;
+	}
+
+	.leaflet-tooltip.user-location-tooltip {
 		display: none !important;
 	}
 
@@ -619,6 +770,59 @@ textarea.gmaps-form-input {
 	background: #ffffff;
 }
 
+.maps-control-button--active,
+.maps-control-button--active:hover {
+	border-color: rgba(37, 99, 235, 0.32);
+	background: rgba(219, 234, 254, 0.96);
+	color: #1d4ed8;
+	box-shadow: 0 18px 36px -24px rgba(37, 99, 235, 0.34);
+}
+
+.maps-location-pill {
+	position: absolute;
+	left: 1rem;
+	bottom: 7.2rem;
+	z-index: 31;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	border: 1px solid rgba(219, 234, 254, 0.96);
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.95);
+	padding: 0.7rem 0.9rem;
+	font-size: 0.78rem;
+	font-weight: 700;
+	line-height: 1;
+	color: #0f172a;
+	box-shadow: 0 20px 40px -28px rgba(15, 23, 42, 0.35);
+	-webkit-backdrop-filter: blur(10px);
+	backdrop-filter: blur(10px);
+}
+
+.maps-location-pill__dot {
+	display: inline-flex;
+	height: 0.6rem;
+	width: 0.6rem;
+	border-radius: 999px;
+	background: #2563eb;
+	box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.3);
+	animation: maps-location-pulse 1.8s ease-out infinite;
+}
+
+@keyframes maps-location-pulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.32);
+	}
+
+	70% {
+		box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+	}
+
+	100% {
+		box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+	}
+}
+
 .maps-legend {
 	position: absolute;
 	left: 1rem;
@@ -633,6 +837,7 @@ textarea.gmaps-form-input {
 	background: rgba(255, 255, 255, 0.95);
 	padding: 0.85rem 0.95rem;
 	box-shadow: 0 20px 40px -28px rgba(15, 23, 42, 0.35);
+	-webkit-backdrop-filter: blur(10px);
 	backdrop-filter: blur(10px);
 }
 
@@ -668,6 +873,10 @@ textarea.gmaps-form-input {
 }
 
 @media (min-width: 1024px) {
+	.maps-location-pill {
+		left: calc(var(--maps-sidebar-width, 24rem) + 2rem);
+	}
+
 	.maps-legend {
 		left: calc(var(--maps-sidebar-width, 24rem) + 2rem);
 	}
@@ -683,6 +892,13 @@ textarea.gmaps-form-input {
 	.maps-control-button {
 		height: 2.7rem;
 		width: 2.7rem;
+	}
+
+	.maps-location-pill {
+		left: 0.85rem;
+		bottom: 1rem;
+		font-size: 0.74rem;
+		padding: 0.68rem 0.82rem;
 	}
 
 	.maps-legend {
