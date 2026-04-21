@@ -8,6 +8,7 @@ import {
   inject,
   input,
   output,
+  signal,
   viewChild,
 } from '@angular/core';
 import type { Icon, LatLngExpression, LeafletMouseEvent, Map as LeafletMap, Marker } from 'leaflet';
@@ -28,6 +29,7 @@ export class MapPreviewComponent {
   private readonly mapService = inject(MapService);
 
   private readonly previewCanvas = viewChild.required<ElementRef<HTMLDivElement>>('previewCanvas');
+  private readonly mapInitialized = signal(false);
   private resizeObserver?: ResizeObserver;
   private readonly viewportCleanup: Array<() => void> = [];
 
@@ -44,6 +46,8 @@ export class MapPreviewComponent {
     });
 
     effect(() => {
+      this.mapInitialized();
+      this.location();
       this.syncMarker();
     });
 
@@ -87,6 +91,7 @@ export class MapPreviewComponent {
     });
 
     this.registerResponsiveInvalidation();
+    this.mapInitialized.set(true);
 
     this.syncMarker();
     this.scheduleMapInvalidation();
