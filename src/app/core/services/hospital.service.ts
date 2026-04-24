@@ -22,6 +22,7 @@ import {
   getHospitalStatusMeta,
 } from '../../shared/utils/hospital-status.util';
 import { AuthService } from './auth.service';
+import { FeedbackService } from './feedback.service';
 import { FirestoreService } from './firestore.service';
 
 @Injectable({
@@ -29,6 +30,7 @@ import { FirestoreService } from './firestore.service';
 })
 export class HospitalService {
   private readonly authService = inject(AuthService);
+  private readonly feedbackService = inject(FeedbackService);
   private readonly firestoreService = inject(FirestoreService);
 
   readonly saving = signal(false);
@@ -60,7 +62,10 @@ export class HospitalService {
       map(([hospitals, facilities]) => [...hospitals, ...facilities].sort((left, right) => this.sortByUpdatedAt(left, right))),
       catchError((error) => {
         this.loading.set(false);
-        this.errorMessage.set(this.humanizeFirestoreError(error));
+        const message = this.humanizeFirestoreError(error);
+
+        this.errorMessage.set(message);
+        this.feedbackService.error('Firestore sync issue', message, { life: 6000 });
 
         return of([] as HospitalRecord[]);
       }),
@@ -68,7 +73,7 @@ export class HospitalService {
     { initialValue: [] as HospitalRecord[] },
   );
 
-  readonly hospitals = computed(() => this.liveHospitals());
+  readonly hospitals = computed(() => this.liveHospitals().filter((hospital) => hospital.deletedAt === null));
   readonly totalHospitalCount = computed(() => this.hospitals().length);
   readonly totalAvailableRooms = computed(() =>
     this.hospitals().reduce((sum, hospital) => sum + hospital.availableRooms, 0),
@@ -195,6 +200,22 @@ export class HospitalService {
     this.selectedHospitalId.set(hospitalId);
   }
 
+  canRequestManagement(hospital: HospitalRecord | null): boolean {
+    return !!hospital && hospital.collectionPath === 'facilities' && hospital.ownerUserId.trim().length > 0;
+  }
+
+  canCurrentUserManage(hospital: HospitalRecord | null): boolean {
+    const currentUserId = this.authService.user()?.id ?? null;
+
+    return (
+      hospital !== null
+      && hospital.collectionPath === 'facilities'
+      && hospital.ownerUserId.trim().length > 0
+      && currentUserId !== null
+      && hospital.ownerUserId === currentUserId
+    );
+  }
+
   clearFeedback(): void {
     this.errorMessage.set(null);
     this.saveMessage.set(null);
@@ -234,7 +255,21 @@ export class HospitalService {
 
     if (!this.authService.isAuthenticated()) {
       this.saving.set(false);
-      this.errorMessage.set('Sign in to add or update a medical facility listing.');
+      this.setErrorFeedback('Authentication required', 'Sign in to add or update a medical facility listing.');
+      return null;
+    }
+
+    const currentUser = this.authService.user();
+
+    if (!currentUser) {
+      this.saving.set(false);
+      this.setErrorFeedback('Authentication required', 'Sign in again before managing facilities.');
+      return null;
+    }
+
+    if (editingHospital && !this.canCurrentUserManage(editingHospital)) {
+      this.saving.set(false);
+      this.setErrorFeedback('Permission denied', 'Only the user who created this facility can edit it.');
       return null;
     }
 
@@ -248,19 +283,19 @@ export class HospitalService {
 
     if (!formValue.location) {
       this.saving.set(false);
-      this.errorMessage.set('Click on the map to choose the exact medical facility location.');
+      this.setErrorFeedback('Location required', 'Click on the map to choose the exact medical facility location.');
       return null;
     }
 
     if (roomTypes.length === 0) {
       this.saving.set(false);
-      this.errorMessage.set('Select at least one room type before saving this record.');
+      this.setErrorFeedback('Room type required', 'Select at least one room type before saving this record.');
       return null;
     }
 
     if (formValue.availableRooms > formValue.totalRooms) {
       this.saving.set(false);
-      this.errorMessage.set('Available rooms cannot be greater than the total room count.');
+      this.setErrorFeedback('Invalid room counts', 'Available rooms cannot be greater than the total room count.');
       return null;
     }
 
@@ -281,13 +316,15 @@ export class HospitalService {
       roomTypes: draft.roomTypes,
       status: draft.status,
       sourceLabel: draft.sourceLabel,
+      ownerUserId: editingHospital?.ownerUserId ?? currentUser.id,
+      ownerDisplayName: editingHospital?.ownerDisplayName ?? currentUser.displayName,
       updatedAt: serverTimestamp(),
     } satisfies Record<string, unknown>;
 
     try {
       if (editingHospital) {
         await this.firestoreService.updateDocument(editingHospital.collectionPath, editingHospital.id, payload);
-        this.saveMessage.set('Listing updated. The map and directory refresh automatically.');
+        this.setSuccessFeedback('Facility updated', 'Listing updated. The map and directory refresh automatically.');
         return editingHospital.id;
       }
 
@@ -296,14 +333,60 @@ export class HospitalService {
         createdAt: serverTimestamp(),
       });
 
-      this.saveMessage.set('Listing created. Visitors can now see it on the map and in the directory.');
+      this.setSuccessFeedback('Facility added', 'Listing created. Visitors can now see it on the map and in the directory.');
       return hospitalId;
     } catch (error) {
-      this.errorMessage.set(this.humanizeFirestoreError(error));
+      this.setErrorFeedback('Firestore save failed', this.humanizeFirestoreError(error));
       return null;
     } finally {
       this.saving.set(false);
     }
+  }
+
+  async deleteHospital(hospital: HospitalRecord | null): Promise<boolean> {
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    this.saveMessage.set(null);
+
+    const currentUser = this.authService.user();
+
+    if (!currentUser) {
+      this.saving.set(false);
+      this.setErrorFeedback('Authentication required', 'Sign in before deleting a facility listing.');
+      return false;
+    }
+
+    if (!hospital || !this.canCurrentUserManage(hospital)) {
+      this.saving.set(false);
+      this.setErrorFeedback('Permission denied', 'Only the user who created this facility can delete it.');
+      return false;
+    }
+
+    try {
+      await this.firestoreService.updateDocument(hospital.collectionPath, hospital.id, {
+        updatedAt: serverTimestamp(),
+        deletedAt: serverTimestamp(),
+        deletedByUserId: currentUser.id,
+      });
+
+      this.setSuccessFeedback('Facility deleted', 'It has been removed from the public directory.');
+      return true;
+    } catch (error) {
+      this.setErrorFeedback('Firestore delete failed', this.humanizeFirestoreError(error));
+      return false;
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  private setErrorFeedback(summary: string, message: string): void {
+    this.errorMessage.set(message);
+    this.feedbackService.error(summary, message);
+  }
+
+  private setSuccessFeedback(summary: string, message: string): void {
+    this.saveMessage.set(message);
+    this.feedbackService.success(summary, message);
   }
 
   private createDraft(
@@ -359,8 +442,12 @@ export class HospitalService {
       status: deriveHospitalStatus(availableRooms, totalRooms, data['status']),
       createdAt: this.readTimestamp(data['createdAt']),
       updatedAt: this.readTimestamp(data['updatedAt']),
+      ownerUserId: this.readString(data['ownerUserId']),
+      ownerDisplayName: this.readString(data['ownerDisplayName']) || this.readString(data['ownerName']),
+      deletedAt: this.readTimestamp(data['deletedAt']),
       sourceLabel:
         this.readString(data['sourceLabel']) ||
+        this.readString(data['ownerDisplayName']) ||
         this.readString(data['ownerName']) ||
         (collectionPath === 'hospitals' ? 'Medical team update' : 'Directory update'),
     };

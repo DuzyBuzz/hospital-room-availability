@@ -1,80 +1,75 @@
-<header class="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/96 shadow-[0_12px_32px_-28px_rgba(15,23,42,0.4)] backdrop-blur">
-  <div class="mx-auto flex w-full max-w-440 flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-    <div class="flex min-w-0 items-center gap-4">
-      <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 ring-1 ring-sky-100">
-🏥
-      </div>
+<p-toolbar styleClass="maps-prime-navbar">
+  <ng-template #start>
+    <div class="maps-prime-navbar__brand">
+      <p-avatar icon="pi pi-building-columns" shape="circle" styleClass="maps-prime-navbar__avatar" />
 
-      <div class="min-w-0">
-        <p class="font-title truncate text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-          {{ dashboardTitle() }}
-        </p>
-        <p class="mt-1 text-sm text-slate-500">
-          Live room availability across hospitals and facilities in Iloilo.
-        </p>
+      <div class="maps-prime-navbar__copy">
+        <p class="maps-prime-navbar__eyebrow">{{ eyebrow() }}</p>
+        <p class="maps-prime-navbar__title">{{ dashboardTitle() }}</p>
+        <p class="maps-prime-navbar__subtitle">{{ subtitle() }}</p>
       </div>
     </div>
+  </ng-template>
 
-    <div class="flex flex-wrap items-center gap-3">
-      <div class="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
-        {{ facilityCount() }} facilities live
-      </div>
-      <div class="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
-        {{ openRooms() }} rooms open
-      </div>
+  <ng-template #end>
+    <div class="maps-prime-navbar__actions">
+      <p-tag [value]="facilityCount() + ' facilities live'" severity="info" styleClass="maps-prime-navbar__tag hidden xl:flex" />
+      <p-tag [value]="openRooms() + ' rooms open'" severity="success" styleClass="maps-prime-navbar__tag hidden xl:flex" />
 
-      <a
-        routerLink="/"
-        routerLinkActive="bg-slate-900 text-white shadow-sm"
-        [routerLinkActiveOptions]="{ exact: true }"
-        class="rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-      >
-        Explore Map
+      @if (showLocateButton()) {
+        <button
+          pButton
+          type="button"
+          icon="pi pi-send"
+          [rounded]="true"
+          [text]="true"
+          severity="secondary"
+          (click)="locateRequested.emit()"
+          aria-label="Locate me on the map"
+        ></button>
+      }
+
+      <a pButton [routerLink]="primaryRouteLink()" severity="secondary" [outlined]="true" class="hidden lg:inline-flex">
+        {{ primaryRouteLabel() }}
       </a>
 
-      <a
-        routerLink="/facility"
-        routerLinkActive="bg-slate-900 text-white shadow-sm"
-        class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-      >
-        Manage Facilities
+      <a pButton [routerLink]="secondaryRouteLink()" severity="contrast" class="hidden lg:inline-flex">
+        {{ secondaryRouteLabel() }}
       </a>
+
+      @if (showMobilePanelButton()) {
+        <button
+          pButton
+          type="button"
+          severity="secondary"
+          [outlined]="true"
+          class="lg:hidden"
+          (click)="mobilePanelRequested.emit()"
+          [attr.aria-expanded]="mobilePanelExpanded()"
+        >
+          {{ mobilePanelButtonLabel() }} ({{ mobilePanelButtonCount() }})
+        </button>
+      }
 
       @if (authService.loading()) {
-        <div class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">
-          Checking session...
-        </div>
+        <p-tag value="Checking session..." severity="secondary" styleClass="maps-prime-navbar__tag hidden sm:flex" />
       } @else if (authService.isAuthenticated()) {
-        <div class="rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-100">
-          {{ authService.displayName() }}
-        </div>
+        <p-tag [value]="authService.displayName()" severity="contrast" styleClass="maps-prime-navbar__tag hidden sm:flex" />
 
-        <button
-          type="button"
-          (click)="void authService.signOut()"
-          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-        >
+        <button pButton type="button" severity="secondary" [text]="true" (click)="void authService.signOut()">
           Sign Out
         </button>
       } @else {
-        <button
-          type="button"
-          (click)="authService.openModal('signIn')"
-          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-        >
+        <button pButton type="button" severity="secondary" [text]="true" (click)="authService.openModal('signIn')">
           Sign In
         </button>
 
-        <button
-          type="button"
-          (click)="authService.openModal('signUp')"
-          class="rounded-full bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-900/12 transition hover:-translate-y-0.5 hover:bg-sky-800"
-        >
+        <button pButton type="button" severity="contrast" (click)="authService.openModal('signUp')">
           Create Account
         </button>
       }
     </div>
-  </div>
-</header>
+  </ng-template>
+</p-toolbar>
 
 <app-auth-modal />

@@ -33,12 +33,14 @@ export class FacilityFormComponent {
   private readonly lastPatchedHospitalId = signal<string | null | undefined>(undefined);
 
   readonly hospital = input<HospitalRecord | null>(null);
+  readonly canDelete = input(false);
   readonly draftLocation = input<Coordinates | null>(null);
   readonly roomTypeOptions = input<string[]>([]);
   readonly saving = input(false);
   readonly statusOptions = input<readonly HospitalStatusOption[]>([]);
 
   readonly cancel = output<void>();
+  readonly deleteRequested = output<void>();
   readonly saveHospital = output<HospitalFormValue>();
   readonly clearLocation = output<void>();
   readonly locationPicked = output<Coordinates>();

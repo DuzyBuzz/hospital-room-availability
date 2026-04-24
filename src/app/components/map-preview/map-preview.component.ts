@@ -12,6 +12,7 @@ import {
   viewChild,
 } from '@angular/core';
 import type { Icon, LatLngExpression, LeafletMouseEvent, Map as LeafletMap, Marker } from 'leaflet';
+import { FeedbackService } from '../../core/services/feedback.service';
 import { MapService } from '../../core/services/map.service';
 import type { Coordinates } from '../../models/hospital.model';
 import { loadLeaflet } from '../../shared/utils/leaflet-loader.util';
@@ -26,6 +27,7 @@ import { loadLeaflet } from '../../shared/utils/leaflet-loader.util';
 })
 export class MapPreviewComponent {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly feedbackService = inject(FeedbackService);
   private readonly mapService = inject(MapService);
 
   private readonly previewCanvas = viewChild.required<ElementRef<HTMLDivElement>>('previewCanvas');
@@ -67,34 +69,42 @@ export class MapPreviewComponent {
       return;
     }
 
-    this.leaflet = await loadLeaflet();
+    try {
+      this.leaflet = await loadLeaflet();
 
-    this.map = this.leaflet.map(this.previewCanvas().nativeElement, {
-      center: [...this.mapService.initialCenter] as [number, number],
-      zoom: 13.7,
-      zoomControl: false,
-      attributionControl: false,
-      scrollWheelZoom: false,
-      preferCanvas: true,
-    });
-
-    this.leaflet.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    }).addTo(this.map);
-
-    this.map.on('click', (event: LeafletMouseEvent) => {
-      this.locationPicked.emit({
-        lat: event.latlng.lat,
-        lng: event.latlng.lng,
+      this.map = this.leaflet.map(this.previewCanvas().nativeElement, {
+        center: [...this.mapService.initialCenter] as [number, number],
+        zoom: 13.7,
+        zoomControl: false,
+        attributionControl: false,
+        scrollWheelZoom: false,
+        preferCanvas: true,
       });
-    });
 
-    this.registerResponsiveInvalidation();
-    this.mapInitialized.set(true);
+      this.leaflet.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      }).addTo(this.map);
 
-    this.syncMarker();
-    this.scheduleMapInvalidation();
+      this.map.on('click', (event: LeafletMouseEvent) => {
+        this.locationPicked.emit({
+          lat: event.latlng.lat,
+          lng: event.latlng.lng,
+        });
+      });
+
+      this.registerResponsiveInvalidation();
+      this.mapInitialized.set(true);
+
+      this.syncMarker();
+      this.scheduleMapInvalidation();
+    } catch {
+      this.feedbackService.error(
+        'Leaflet preview failed',
+        'The facility location preview could not load. Refresh the page and try again.',
+        { life: 6000 },
+      );
+    }
   }
 
   private syncMarker(): void {

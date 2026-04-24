@@ -1,16 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { map } from 'rxjs';
 import { AuthModalComponent } from '../../components/auth/auth-modal.component';
 import { MapComponent } from '../../components/map/map.component';
 import { HospitalDetailsComponent } from '../../components/sidebar/hospital-details.component';
 import { HospitalListComponent } from '../../components/sidebar/hospital-list.component';
+import { SidebarComponent } from '../../components/sidebar/sidebar.component';
 import { AuthService } from '../../core/services/auth.service';
+import { FeedbackService } from '../../core/services/feedback.service';
 import { HospitalService } from '../../core/services/hospital.service';
 import { MapService } from '../../core/services/map.service';
-import type { Coordinates, HospitalStatus } from '../../models/hospital.model';
+import type { Coordinates, HospitalRecord, HospitalStatus } from '../../models/hospital.model';
 import type { HospitalFormValue } from '../../shared/interfaces/hospital-form.interface';
 import { FacilityFormComponent } from './facility-form.component';
 
@@ -18,11 +21,13 @@ import { FacilityFormComponent } from './facility-form.component';
   selector: 'app-facility-dashboard',
   imports: [
     AuthModalComponent,
+    ButtonModule,
     DialogModule,
     FacilityFormComponent,
     HospitalDetailsComponent,
     HospitalListComponent,
     MapComponent,
+    SidebarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './facility-dashboard.component.html',
@@ -35,6 +40,7 @@ export class FacilityDashboardComponent {
   private readonly router = inject(Router);
 
   protected readonly authService = inject(AuthService);
+  private readonly feedbackService = inject(FeedbackService);
   protected readonly hospitalService = inject(HospitalService);
   protected readonly mapService = inject(MapService);
   protected readonly mobileSheetExpanded = signal(false);
@@ -52,6 +58,7 @@ export class FacilityDashboardComponent {
   protected readonly editingHospital = computed(
     () => this.hospitalService.hospitals().find((hospital) => hospital.id === this.editingHospitalId()) ?? null,
   );
+  protected readonly selectedHospital = computed(() => this.hospitalService.selectedHospital());
   protected readonly activeSelectionId = computed(
     () => this.editingHospitalId() ?? this.hospitalService.selectedHospitalId(),
   );
@@ -65,6 +72,16 @@ export class FacilityDashboardComponent {
   }));
   protected readonly entryModalTitle = computed(() =>
     this.editingHospital() ? 'Edit medical facility' : 'Add medical facility',
+  );
+  protected readonly canRequestSelectedEntry = computed(() => this.canRequestEdit(this.selectedHospital()));
+  protected readonly canDeleteSelectedFacility = computed(() =>
+    this.hospitalService.canCurrentUserManage(this.selectedHospital()),
+  );
+  protected readonly canDeleteEditingFacility = computed(() =>
+    this.hospitalService.canCurrentUserManage(this.editingHospital()),
+  );
+  protected readonly selectedOwnershipMessage = computed(() =>
+    this.managementRestrictionMessage(this.selectedHospital()),
   );
 
   constructor() {
@@ -90,18 +107,9 @@ export class FacilityDashboardComponent {
         }
 
         this.handledRouteHospitalId.set(routeHospitalId);
-        this.editingHospitalId.set(matchingHospital.id);
         this.hospitalService.selectHospital(matchingHospital.id);
         this.mobileSheetExpanded.set(true);
-
-        if (this.authService.isAuthenticated()) {
-          this.openEntryModalFor(matchingHospital.id);
-          return;
-        }
-
-        this.pendingEntryMode.set('edit');
-        this.mapService.clearDraftLocation();
-        this.mapService.setMapNotice('Sign in to update this listing, or keep browsing the map.');
+        this.requestEditForHospital(matchingHospital.id);
       },
     );
 
@@ -119,7 +127,7 @@ export class FacilityDashboardComponent {
           const hospitalId = this.editingHospitalId() ?? this.hospitalService.selectedHospitalId();
 
           if (hospitalId) {
-            this.openEntryModalFor(hospitalId);
+            this.requestEditForHospital(hospitalId);
           }
         }
 
@@ -171,6 +179,10 @@ export class FacilityDashboardComponent {
   protected startNewEntry(): void {
     if (!this.authService.isAuthenticated()) {
       this.pendingEntryMode.set('create');
+      this.feedbackService.info(
+        'Account required',
+        'Create or sign in to a facility account before publishing a new listing.',
+      );
       this.authService.openModal('signUp');
       return;
     }
@@ -185,14 +197,7 @@ export class FacilityDashboardComponent {
       return;
     }
 
-    if (!this.authService.isAuthenticated()) {
-      this.pendingEntryMode.set('edit');
-      this.editingHospitalId.set(hospitalId);
-      this.authService.openModal('signIn');
-      return;
-    }
-
-    this.openEntryModalFor(hospitalId);
+    this.requestEditForHospital(hospitalId);
   }
 
   protected closeEntryModal(): void {
@@ -222,11 +227,18 @@ export class FacilityDashboardComponent {
 
   protected pickLocation(location: Coordinates): void {
     this.mapService.setDraftLocation(location);
+    this.mapService.setMapNotice('Facility pin updated. Save the form when the map marker is in the right spot.');
+    this.feedbackService.success(
+      'Leaflet pin updated',
+      `Marker set to ${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}.`,
+    );
     this.mapComponent()?.focusLocation(location, 15.4);
   }
 
   protected clearLocation(): void {
     this.mapService.clearDraftLocation();
+    this.mapService.setMapNotice('Map pin cleared. Drop a new marker before saving the facility listing.');
+    this.feedbackService.info('Leaflet pin cleared', 'Choose a new point on the map when you are ready.');
   }
 
   protected async saveHospital(formValue: HospitalFormValue): Promise<void> {
@@ -254,6 +266,14 @@ export class FacilityDashboardComponent {
     });
   }
 
+  protected async deleteSelectedFacility(): Promise<void> {
+    await this.deleteFacility(this.selectedHospital());
+  }
+
+  protected async deleteEditingFacility(): Promise<void> {
+    await this.deleteFacility(this.editingHospital());
+  }
+
   private beginNewEntry(): void {
     this.entryModalOpen.set(true);
     this.editingHospitalId.set(null);
@@ -266,6 +286,50 @@ export class FacilityDashboardComponent {
       queryParams: { hospitalId: null },
       queryParamsHandling: 'merge',
     });
+  }
+
+  private requestEditForHospital(hospitalId: string): void {
+    const targetHospital = this.hospitalService.hospitals().find((hospital) => hospital.id === hospitalId);
+
+    if (!targetHospital) {
+      return;
+    }
+
+    this.hospitalService.selectHospital(hospitalId);
+    this.mobileSheetExpanded.set(true);
+
+    if (!this.hospitalService.canRequestManagement(targetHospital)) {
+      const message = this.managementRestrictionMessage(targetHospital) ?? 'This facility is locked for editing.';
+
+      this.editingHospitalId.set(null);
+      this.mapService.clearDraftLocation();
+      this.mapService.setMapNotice(message);
+      this.feedbackService.warn('Editing unavailable', message);
+      return;
+    }
+
+    if (!this.authService.isAuthenticated()) {
+      this.pendingEntryMode.set('edit');
+      this.editingHospitalId.set(hospitalId);
+      this.feedbackService.info(
+        'Sign in required',
+        'Use the account that created this facility to edit or delete it.',
+      );
+      this.authService.openModal('signIn');
+      return;
+    }
+
+    if (!this.hospitalService.canCurrentUserManage(targetHospital)) {
+      const message = this.managementRestrictionMessage(targetHospital) ?? 'Only the creator can manage this facility.';
+
+      this.editingHospitalId.set(null);
+      this.mapService.clearDraftLocation();
+      this.mapService.setMapNotice(message);
+      this.feedbackService.warn('Permission denied', message);
+      return;
+    }
+
+    this.openEntryModalFor(hospitalId);
   }
 
   private openEntryModalFor(hospitalId: string): void {
@@ -290,12 +354,92 @@ export class FacilityDashboardComponent {
     });
   }
 
+  private canRequestEdit(hospital: HospitalRecord | null): boolean {
+    if (!hospital || !this.hospitalService.canRequestManagement(hospital)) {
+      return false;
+    }
+
+    return !this.authService.isAuthenticated() || this.hospitalService.canCurrentUserManage(hospital);
+  }
+
+  private managementRestrictionMessage(hospital: HospitalRecord | null): string | null {
+    if (!hospital) {
+      return null;
+    }
+
+    if (hospital.collectionPath !== 'facilities') {
+      return 'Only community-submitted facilities can be edited or deleted here.';
+    }
+
+    if (!hospital.ownerUserId) {
+      return 'This facility has no recorded owner, so editing and deletion are locked.';
+    }
+
+    if (!this.authService.isAuthenticated()) {
+      return 'Sign in with the account that created this facility to edit or delete it.';
+    }
+
+    if (!this.hospitalService.canCurrentUserManage(hospital)) {
+      return 'Only the user who created this facility can edit or delete it.';
+    }
+
+    return null;
+  }
+
+  private async deleteFacility(hospital: HospitalRecord | null): Promise<void> {
+    if (!hospital || !this.hospitalService.canCurrentUserManage(hospital)) {
+      return;
+    }
+
+    const confirmed = await this.feedbackService.confirmAction({
+      header: 'Delete this facility?',
+      message: `Delete ${hospital.name}? This removes it from the public directory.`,
+      acceptLabel: 'Delete listing',
+      rejectLabel: 'Keep listing',
+      acceptButtonStyleClass: 'p-button-danger p-button-sm',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    const deleted = await this.hospitalService.deleteHospital(hospital);
+
+    if (!deleted) {
+      return;
+    }
+
+    this.entryModalOpen.set(false);
+    this.editingHospitalId.set(null);
+    this.mapService.clearDraftLocation();
+    this.mapComponent()?.focusInitialView();
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { hospitalId: null },
+      replaceUrl: true,
+      queryParamsHandling: 'merge',
+    });
+  }
+
   protected locateUser(): void {
     this.mapComponent()?.locateUser();
   }
 
   protected toggleMobileSheet(): void {
     this.mobileSheetExpanded.update((value) => !value);
+  }
+
+  protected openMobileSheet(): void {
+    this.mobileSheetExpanded.set(true);
+  }
+
+  protected closeMobileSheet(): void {
+    this.mobileSheetExpanded.set(false);
+  }
+
+  protected handleMobileSheetVisibilityChange(visible: boolean): void {
+    this.mobileSheetExpanded.set(visible);
   }
 
   protected isSingleStatusSelected(status: HospitalStatus): boolean {

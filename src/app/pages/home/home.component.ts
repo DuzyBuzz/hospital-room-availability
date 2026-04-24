@@ -1,11 +1,12 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { HospitalService } from '../../core/services/hospital.service';
 import { MapService } from '../../core/services/map.service';
 import { MapComponent } from '../../components/map/map.component';
+import { NavbarComponent } from '../../components/navbar/navbar.component';
 import { HospitalDetailsComponent } from '../../components/sidebar/hospital-details.component';
 import { HospitalListComponent } from '../../components/sidebar/hospital-list.component';
+import { SidebarComponent } from '../../components/sidebar/sidebar.component';
 import type { HospitalStatus } from '../../models/hospital.model';
 
 @Component({
@@ -14,8 +15,9 @@ import type { HospitalStatus } from '../../models/hospital.model';
     HospitalDetailsComponent,
     HospitalListComponent,
     MapComponent,
+    NavbarComponent,
     NgTemplateOutlet,
-    RouterLink,
+    SidebarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './home.component.html',
@@ -41,24 +43,14 @@ export class HomeComponent {
     this.updateSearchTerm(target?.value ?? '');
   }
 
-  protected updateRoomType(value: string): void {
+  protected selectRoomType(value: string): void {
     this.hospitalService.setRoomType(value);
     this.mobileSidebarOpen.set(true);
   }
 
-  protected handleRoomTypeChange(event: Event): void {
-    const target = event.target as HTMLSelectElement | null;
-    this.updateRoomType(target?.value ?? 'all');
-  }
-
-  protected updateArea(value: string): void {
+  protected selectArea(value: string): void {
     this.hospitalService.setArea(value);
     this.mobileSidebarOpen.set(true);
-  }
-
-  protected handleAreaChange(event: Event): void {
-    const target = event.target as HTMLSelectElement | null;
-    this.updateArea(target?.value ?? 'all');
   }
 
   protected showAllHospitals(): void {
@@ -91,7 +83,7 @@ export class HomeComponent {
 
   protected selectHospital(hospitalId: string): void {
     this.hospitalService.selectHospital(hospitalId);
-    this.mobileSidebarOpen.set(true);
+    this.mobileSidebarOpen.set(false);
   }
 
   protected locateUser(): void {
@@ -106,11 +98,23 @@ export class HomeComponent {
     this.mobileSidebarOpen.set(false);
   }
 
+  protected handleMobileSidebarVisibilityChange(visible: boolean): void {
+    this.mobileSidebarOpen.set(visible);
+  }
+
   protected hasRoomTypeFilter(): boolean {
     return this.hospitalService.selectedRoomType() !== 'all';
   }
 
   protected hasAreaFilter(): boolean {
     return this.hospitalService.selectedArea() !== 'all';
+  }
+
+  protected isRoomTypeSelected(value: string): boolean {
+    return this.hospitalService.selectedRoomType() === value;
+  }
+
+  protected isAreaSelected(value: string): boolean {
+    return this.hospitalService.selectedArea() === value;
   }
 }

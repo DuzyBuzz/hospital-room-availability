@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { MessageModule } from 'primeng/message';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-auth-modal',
-  imports: [DialogModule, InputTextModule, ReactiveFormsModule],
+  imports: [ButtonModule, DialogModule, InputTextModule, MessageModule, ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './auth-modal.component.html',
   host: {

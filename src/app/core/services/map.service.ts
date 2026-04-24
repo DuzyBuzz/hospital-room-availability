@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Coordinates, HospitalRecord } from '../../models/hospital.model';
 import { DirectionsService, type TravelRouteResult } from './directions.service';
+import { FeedbackService } from './feedback.service';
 
 export interface ActiveTravelRoute extends TravelRouteResult {
   destinationId: string;
@@ -13,8 +14,10 @@ export interface ActiveTravelRoute extends TravelRouteResult {
 })
 export class MapService {
   private readonly directionsService = inject(DirectionsService);
+  private readonly feedbackService = inject(FeedbackService);
 
   private activeRequestKey: string | null = null;
+  private routeFeedbackKey: string | null = null;
   private resolvedRouteKey: string | null = null;
 
   readonly initialCenter = [10.7202, 122.5621] as const;
@@ -63,6 +66,7 @@ export class MapService {
 
   clearRoute(): void {
     this.activeRequestKey = null;
+    this.routeFeedbackKey = null;
     this.resolvedRouteKey = null;
     this.routeLoading.set(false);
     this.routeError.set(null);
@@ -106,6 +110,7 @@ export class MapService {
         destinationName: hospital.name,
         directionsUrl: this.getDirectionsUrl(hospital.location) ?? '',
       });
+      this.routeFeedbackKey = null;
       this.resolvedRouteKey = requestKey;
     } catch (error) {
       if (this.activeRequestKey !== requestKey) {
@@ -115,6 +120,14 @@ export class MapService {
       this.activeRoute.set(null);
       this.resolvedRouteKey = null;
       this.routeError.set('Directions and travel time are temporarily unavailable.');
+
+      if (this.routeFeedbackKey !== requestKey) {
+        this.feedbackService.warn(
+          'Directions unavailable',
+          'Driving time and route guidance are temporarily unavailable for this facility.',
+        );
+        this.routeFeedbackKey = requestKey;
+      }
     } finally {
       if (this.activeRequestKey === requestKey) {
         this.routeLoading.set(false);

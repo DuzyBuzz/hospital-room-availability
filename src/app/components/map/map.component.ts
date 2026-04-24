@@ -23,6 +23,7 @@ import type {
   Polyline,
   TileLayer,
 } from 'leaflet';
+import { FeedbackService } from '../../core/services/feedback.service';
 import { MapService } from '../../core/services/map.service';
 import type { Coordinates, HospitalRecord, HospitalStatus } from '../../models/hospital.model';
 import { getHospitalStatusMeta, HOSPITAL_STATUS_OPTIONS } from '../../shared/utils/hospital-status.util';
@@ -42,6 +43,7 @@ const LEAFLET_MARKER_SHADOW_URL = new URL('leaflet/dist/images/marker-shadow.png
 })
 export class MapComponent {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly feedbackService = inject(FeedbackService);
   protected readonly mapService = inject(MapService);
 
   private readonly mapCanvas = viewChild.required<ElementRef<HTMLDivElement>>('mapCanvas');
@@ -61,6 +63,7 @@ export class MapComponent {
   private geolocationWatchId: number | null = null;
   private userLocationAccuracyMeters: number | null = null;
   private hasCenteredOnUserLocation = false;
+  private locateRequestPending = false;
 
   readonly hospitals = input<HospitalRecord[]>([]);
   readonly selectedHospitalId = input<string | null>(null);
@@ -232,12 +235,16 @@ export class MapComponent {
   public locateUser(): void {
     this.isFollowingUserLocation.set(true);
     this.hasCenteredOnUserLocation = false;
+    this.locateRequestPending = true;
     this.startUserLocationTracking();
 
     const userLocation = this.mapService.userLocation();
 
     if (userLocation) {
       this.followUserLocation(userLocation, true);
+      this.feedbackService.success('Live location ready', this.buildLocationReadyMessage(userLocation));
+      this.mapService.setMapNotice('Live location locked. The map is following your position.');
+      this.locateRequestPending = false;
     }
   }
 
@@ -254,52 +261,65 @@ export class MapComponent {
       return;
     }
 
-    this.leaflet = await loadLeaflet();
+    try {
+      this.leaflet = await loadLeaflet();
 
-    const mapContainer = this.mapCanvas().nativeElement;
+      const mapContainer = this.mapCanvas().nativeElement;
 
-    this.map = this.leaflet.map(mapContainer, {
-      center: [...this.mapService.initialCenter] as [number, number],
-      zoom: this.mapService.initialZoom,
-      zoomControl: false,
-      attributionControl: this.displayMode() !== 'preview',
-      preferCanvas: true,
-    });
+      this.map = this.leaflet.map(mapContainer, {
+        center: [...this.mapService.initialCenter] as [number, number],
+        zoom: this.mapService.initialZoom,
+        zoomControl: false,
+        attributionControl: this.displayMode() !== 'preview',
+        preferCanvas: true,
+      });
 
-    const routePane = this.map.createPane('routePane');
-    routePane.style.zIndex = '350';
-    routePane.style.pointerEvents = 'none';
+      const routePane = this.map.createPane('routePane');
+      routePane.style.zIndex = '350';
+      routePane.style.pointerEvents = 'none';
 
-    const tileSource = this.getTileSource();
+      const tileSource = this.getTileSource();
 
-    this.tileLayer = this.leaflet.tileLayer(tileSource.url, {
-      maxZoom: 19,
-      attribution: tileSource.attribution,
-    }).addTo(this.map);
+      this.tileLayer = this.leaflet.tileLayer(tileSource.url, {
+        maxZoom: 19,
+        attribution: tileSource.attribution,
+      }).addTo(this.map);
 
-    if (this.displayMode() !== 'preview') {
-      this.leaflet.control.attribution({ position: 'bottomright', prefix: false }).addTo(this.map);
-    }
-
-    this.map.on('click', (event: LeafletMouseEvent) => {
-      if (!this.allowLocationSelection()) {
-        return;
+      if (this.displayMode() !== 'preview') {
+        this.leaflet.control.attribution({ position: 'bottomright', prefix: false }).addTo(this.map);
       }
 
-      this.locationPicked.emit({
-        lat: event.latlng.lat,
-        lng: event.latlng.lng,
+      this.map.on('click', (event: LeafletMouseEvent) => {
+        if (!this.allowLocationSelection()) {
+          return;
+        }
+
+        const location = {
+          lat: event.latlng.lat,
+          lng: event.latlng.lng,
+        } satisfies Coordinates;
+
+        this.locationPicked.emit(location);
+        this.mapService.setMapNotice('Location selected on the map. Save the form to keep this facility pin.');
+        this.feedbackService.success('Leaflet pin selected', `Marker set to ${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}.`);
       });
-    });
 
-    this.registerResponsiveInvalidation();
-    this.registerFollowModeInterruption();
+      this.registerResponsiveInvalidation();
+      this.registerFollowModeInterruption();
 
-    this.mapInitialized.set(true);
+      this.mapInitialized.set(true);
 
-    this.scheduleMapInvalidation();
+      this.scheduleMapInvalidation();
 
-    this.startUserLocationTracking();
+      this.startUserLocationTracking();
+    } catch {
+      this.mapService.setMapNotice('Leaflet could not load the interactive map. Refresh the page or check the network connection.');
+      this.feedbackService.error(
+        'Leaflet map failed',
+        'The interactive map could not load. Refresh the page or check the network connection.',
+        { life: 6000 },
+      );
+    }
   }
 
   private syncMarkers(): void {
@@ -650,6 +670,8 @@ export class MapComponent {
           this.handleUserLocationUpdate(position);
         },
         () => {
+          this.handleGeolocationError();
+
           if (!this.mapService.userLocation()) {
             if (this.geolocationWatchId !== null) {
               navigator.geolocation.clearWatch(this.geolocationWatchId);
@@ -668,7 +690,7 @@ export class MapComponent {
         this.handleUserLocationUpdate(position);
       },
       () => {
-        // Ignore geolocation failures and keep the default Iloilo view.
+        this.handleGeolocationError();
       },
       options,
     );
@@ -683,6 +705,12 @@ export class MapComponent {
 
     this.userLocationAccuracyMeters = position.coords.accuracy;
     this.mapService.setUserLocation(location);
+
+    if (this.locateRequestPending) {
+      this.feedbackService.success('Live location ready', this.buildLocationReadyMessage(location));
+      this.mapService.setMapNotice('Live location locked. The map is following your position.');
+      this.locateRequestPending = false;
+    }
 
     if (!hadUserLocation && this.isFullDisplay()) {
       this.isFollowingUserLocation.set(true);
@@ -817,5 +845,23 @@ export class MapComponent {
     window.setTimeout(() => {
       invalidate();
     }, 180);
+  }
+
+  private handleGeolocationError(): void {
+    if (!this.locateRequestPending) {
+      return;
+    }
+
+    this.locateRequestPending = false;
+    this.isFollowingUserLocation.set(false);
+    this.mapService.setMapNotice('Live location is unavailable. Allow browser location access and try again.');
+    this.feedbackService.error(
+      'Location unavailable',
+      'Allow browser location access to center the Leaflet map on your live position.',
+    );
+  }
+
+  private buildLocationReadyMessage(location: Coordinates): string {
+    return `Leaflet centered the map on ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}.`;
   }
 }

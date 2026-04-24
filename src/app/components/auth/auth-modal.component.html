@@ -3,16 +3,16 @@
   (visibleChange)="handleDialogVisibilityChange($event)"
   [modal]="true"
   [dismissableMask]="!authService.busy()"
-  [draggable]="false"
-  [resizable]="false"
+  [draggable]="true"
+  [resizable]="true"
   [closable]="false"
   [baseZIndex]="1500"
   styleClass="gmaps-auth-dialog"
   maskStyleClass="gmaps-dialog-mask"
 >
-  <section class="space-y-5">
-    <div class="flex items-start justify-between gap-4">
-      <div>
+  <ng-template #header>
+    <div class="gmaps-dialog-header">
+      <div class="gmaps-dialog-header__copy">
         <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Facility Access</p>
         <h2 id="auth-modal-title" class="mt-2 text-2xl font-bold tracking-tight text-slate-900">
           {{ title() }}
@@ -23,15 +23,19 @@
       </div>
 
       <button
+        pButton
         type="button"
+        icon="pi pi-times"
+        [rounded]="true"
+        [text]="true"
+        severity="secondary"
         (click)="authService.closeModal()"
-        class="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
         aria-label="Close sign in dialog"
-      >
-        <i class="pi pi-times text-sm" aria-hidden="true"></i>
-      </button>
+      ></button>
     </div>
+  </ng-template>
 
+  <section class="space-y-5">
     <div class="inline-flex rounded-full bg-slate-100 p-1">
       <button
         type="button"
@@ -59,9 +63,7 @@
     </div>
 
     @if (authService.errorMessage(); as errorMessage) {
-      <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-        {{ errorMessage }}
-      </div>
+      <p-message severity="error" [text]="errorMessage" styleClass="w-full" />
     }
 
     <form [formGroup]="form" (ngSubmit)="submitForm()" class="space-y-4">
@@ -118,24 +120,28 @@
       }
 
       @if (showValidationMessage()) {
-        <div class="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          {{ validationMessage() }}
-        </div>
+        <p-message severity="warn" [text]="validationMessage()" styleClass="w-full" />
       }
 
       <div class="flex flex-wrap gap-3 pt-2">
         <button
+          pButton
           type="submit"
           [disabled]="authService.busy()"
-          class="inline-flex flex-1 items-center justify-center rounded-2xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-900/15 transition hover:-translate-y-0.5 hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
+          [loading]="authService.busy()"
+          severity="contrast"
+          class="w-full sm:flex-1"
         >
           {{ authService.busy() ? 'Please wait...' : primaryActionLabel() }}
         </button>
 
         <button
+          pButton
           type="button"
           (click)="authService.closeModal()"
-          class="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          severity="secondary"
+          [outlined]="true"
+          class="w-full sm:w-auto"
         >
           Continue Browsing
         </button>

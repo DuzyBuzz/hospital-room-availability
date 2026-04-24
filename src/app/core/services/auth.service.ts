@@ -1,15 +1,13 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { serverTimestamp } from 'firebase/firestore';
-import { FirestoreService } from './firestore.service';
+import type { Auth, User as FirebaseUser } from 'firebase/auth';
+import {
+  ensureFirebaseAuthPersistence,
+  getFirebaseAuth,
+  loadFirebaseAuthModule,
+} from '../../environment/firebase.environment';
+import { FeedbackService } from './feedback.service';
 
 export type AuthMode = 'signIn' | 'signUp';
-
-interface FirestoreUserAccount {
-  displayName: string;
-  email: string;
-  normalizedEmail: string;
-  passwordHash: string;
-}
 
 interface SessionUser {
   id: string;
@@ -17,13 +15,12 @@ interface SessionUser {
   displayName: string;
 }
 
-const SESSION_STORAGE_KEY = 'hospital-room-availability.session-user';
-
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
-  private readonly firestoreService = inject(FirestoreService);
+  private readonly feedbackService = inject(FeedbackService);
+  private readonly firebaseAuthPromise = getFirebaseAuth();
 
   readonly user = signal<SessionUser | null>(null);
   readonly loading = signal(true);
@@ -44,7 +41,7 @@ export class AuthService {
   });
 
   constructor() {
-    this.restoreSession();
+    void this.initializeAuthSession();
   }
 
   openModal(mode: AuthMode = 'signIn'): void {
@@ -72,29 +69,18 @@ export class AuthService {
     this.errorMessage.set(null);
 
     try {
-      const normalizedEmail = this.normalizeEmail(email);
-      const userId = await this.createUserId(normalizedEmail);
-      const userAccount = await this.firestoreService.getDocument<FirestoreUserAccount>('users', userId);
+      await ensureFirebaseAuthPersistence();
+      const { firebaseAuth, firebaseAuthModule } = await this.getAuthDependencies();
+      const credential = await firebaseAuthModule.signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
 
-      if (!userAccount) {
-        this.errorMessage.set('Email or password is incorrect.');
-        return;
-      }
-
-      const passwordHash = await this.hashPassword(normalizedEmail, password);
-
-      if (userAccount.passwordHash !== passwordHash) {
-        this.errorMessage.set('Email or password is incorrect.');
-        return;
-      }
-
-      const sessionUser = this.toSessionUser(userId, userAccount);
-
-      this.persistSession(sessionUser);
-      this.user.set(sessionUser);
+      this.user.set(this.toSessionUser(credential.user));
       this.modalOpen.set(false);
+      this.feedbackService.success('Signed in', 'You can now add or update facility listings.');
     } catch (error) {
-      this.errorMessage.set(this.humanizeFirestoreAuthError(error, 'We could not sign you in right now.'));
+      this.setErrorMessage(
+        this.humanizeFirebaseAuthError(error, 'We could not sign you in right now.'),
+        'Sign in failed',
+      );
     } finally {
       this.busy.set(false);
     }
@@ -105,39 +91,24 @@ export class AuthService {
     this.errorMessage.set(null);
 
     try {
-      const normalizedEmail = this.normalizeEmail(email);
-      const userId = await this.createUserId(normalizedEmail);
-      const existingUser = await this.firestoreService.getDocument<FirestoreUserAccount>('users', userId);
+      await ensureFirebaseAuthPersistence();
+      const { firebaseAuth, firebaseAuthModule } = await this.getAuthDependencies();
+      const credential = await firebaseAuthModule.createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      const displayName = name.trim();
 
-      if (existingUser) {
-        this.errorMessage.set('This email address already has an account. Sign in instead.');
-        return;
+      if (displayName.length > 0) {
+        await firebaseAuthModule.updateProfile(credential.user, { displayName });
+        await credential.user.reload();
       }
 
-      const displayName = name.trim();
-      const passwordHash = await this.hashPassword(normalizedEmail, password);
-      const emailAddress = email.trim();
-
-      await this.firestoreService.setDocument('users', userId, {
-        displayName,
-        email: emailAddress,
-        normalizedEmail,
-        passwordHash,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      const sessionUser = {
-        id: userId,
-        email: emailAddress,
-        displayName,
-      } satisfies SessionUser;
-
-      this.persistSession(sessionUser);
-      this.user.set(sessionUser);
+      this.user.set(this.toSessionUser(firebaseAuth.currentUser ?? credential.user));
       this.modalOpen.set(false);
+      this.feedbackService.success('Account created', 'Your facility account is ready for new listings.');
     } catch (error) {
-      this.errorMessage.set(this.humanizeFirestoreAuthError(error, 'We could not create your account right now.'));
+      this.setErrorMessage(
+        this.humanizeFirebaseAuthError(error, 'We could not create your account right now.'),
+        'Account setup failed',
+      );
     } finally {
       this.busy.set(false);
     }
@@ -148,122 +119,110 @@ export class AuthService {
     this.errorMessage.set(null);
 
     try {
-      this.clearPersistedSession();
+      const { firebaseAuth, firebaseAuthModule } = await this.getAuthDependencies();
+
+      await firebaseAuthModule.signOut(firebaseAuth);
       this.user.set(null);
+      this.feedbackService.info('Signed out', 'Your facility management session has ended.');
     } catch (error) {
-      this.errorMessage.set(this.humanizeFirestoreAuthError(error, 'We could not clear your session right now.'));
+      this.setErrorMessage(
+        this.humanizeFirebaseAuthError(error, 'We could not clear your session right now.'),
+        'Sign out failed',
+      );
     } finally {
       this.busy.set(false);
     }
   }
 
-  private restoreSession(): void {
-    const storedSession = this.readStoredSession();
-
-    if (storedSession) {
-      this.user.set(storedSession);
-    }
-
-    this.loading.set(false);
+  private setErrorMessage(message: string, summary: string): void {
+    this.errorMessage.set(message);
+    this.feedbackService.error(summary, message);
   }
 
-  private readStoredSession(): SessionUser | null {
+  private async initializeAuthSession(): Promise<void> {
     if (!this.canUseBrowserStorage()) {
-      return null;
-    }
-
-    const rawValue = window.localStorage.getItem(SESSION_STORAGE_KEY);
-
-    if (!rawValue) {
-      return null;
+      this.loading.set(false);
+      return;
     }
 
     try {
-      const parsedValue = JSON.parse(rawValue) as Partial<SessionUser>;
+      await ensureFirebaseAuthPersistence();
+      const { firebaseAuth, firebaseAuthModule } = await this.getAuthDependencies();
 
-      if (
-        typeof parsedValue.id === 'string' &&
-        typeof parsedValue.email === 'string' &&
-        typeof parsedValue.displayName === 'string'
-      ) {
-        return {
-          id: parsedValue.id,
-          email: parsedValue.email,
-          displayName: parsedValue.displayName,
-        };
-      }
-    } catch {
-      this.clearPersistedSession();
+      firebaseAuthModule.onAuthStateChanged(
+        firebaseAuth,
+        (user) => {
+          this.user.set(user ? this.toSessionUser(user) : null);
+          this.loading.set(false);
+        },
+        (error) => {
+          this.user.set(null);
+          this.loading.set(false);
+          this.setErrorMessage(
+            this.humanizeFirebaseAuthError(error, 'We could not restore your session right now.'),
+            'Session restore failed',
+          );
+        },
+      );
+    } catch (error) {
+      this.user.set(null);
+      this.loading.set(false);
+      this.setErrorMessage(
+        this.humanizeFirebaseAuthError(error, 'We could not initialize authentication right now.'),
+        'Authentication unavailable',
+      );
     }
-
-    return null;
-  }
-
-  private persistSession(user: SessionUser): void {
-    if (!this.canUseBrowserStorage()) {
-      return;
-    }
-
-    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
-  }
-
-  private clearPersistedSession(): void {
-    if (!this.canUseBrowserStorage()) {
-      return;
-    }
-
-    window.localStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
   private canUseBrowserStorage(): boolean {
     return typeof window !== 'undefined' && !window.navigator.userAgent.toLowerCase().includes('jsdom');
   }
 
-  private normalizeEmail(email: string): string {
-    return email.trim().toLowerCase();
-  }
+  private async getAuthDependencies(): Promise<{
+    firebaseAuth: Auth;
+    firebaseAuthModule: Awaited<ReturnType<typeof loadFirebaseAuthModule>>;
+  }> {
+    const [firebaseAuth, firebaseAuthModule] = await Promise.all([
+      this.firebaseAuthPromise,
+      loadFirebaseAuthModule(),
+    ]);
 
-  private async createUserId(normalizedEmail: string): Promise<string> {
-    const emailHash = await this.hashValue(normalizedEmail);
-
-    return `user_${emailHash.slice(0, 40)}`;
-  }
-
-  private async hashPassword(normalizedEmail: string, password: string): Promise<string> {
-    return this.hashValue(`${normalizedEmail}::${password}`);
-  }
-
-  private async hashValue(value: string): Promise<string> {
-    if (typeof crypto === 'undefined' || !crypto.subtle) {
-      throw new Error('Password hashing is not available in this browser.');
-    }
-
-    const encodedValue = new TextEncoder().encode(value);
-    const digestBuffer = await crypto.subtle.digest('SHA-256', encodedValue);
-
-    return Array.from(new Uint8Array(digestBuffer), (entry) => entry.toString(16).padStart(2, '0')).join('');
-  }
-
-  private toSessionUser(id: string, userAccount: FirestoreUserAccount): SessionUser {
     return {
-      id,
-      email: userAccount.email,
-      displayName: userAccount.displayName,
+      firebaseAuth,
+      firebaseAuthModule,
     };
   }
 
-  private humanizeFirestoreAuthError(error: unknown, fallback: string): string {
+  private toSessionUser(user: FirebaseUser): SessionUser {
+    return {
+      id: user.uid,
+      email: user.email ?? '',
+      displayName: user.displayName?.trim() || user.email?.split('@')[0] || 'Facility manager',
+    };
+  }
+
+  private humanizeFirebaseAuthError(error: unknown, fallback: string): string {
     const errorCode = this.readFirebaseErrorCode(error);
 
     switch (errorCode) {
-      case 'permission-denied':
-        return 'Firestore rejected the account request. Check the users collection rules.';
-      case 'unavailable':
-        return 'Firestore is temporarily unavailable. Try again in a moment.';
-      case 'deadline-exceeded':
-        return 'The Firestore request timed out. Try again.';
-      case 'resource-exhausted':
-        return 'The Firebase project quota was reached. Try again later.';
+      case 'auth/email-already-in-use':
+        return 'This email address already has an account. Sign in instead.';
+      case 'auth/invalid-credential':
+      case 'auth/invalid-login-credentials':
+        return 'Email or password is incorrect.';
+      case 'auth/invalid-email':
+        return 'Enter a valid email address.';
+      case 'auth/weak-password':
+        return 'Passwords must be at least 6 characters long.';
+      case 'auth/user-disabled':
+        return 'This account has been disabled.';
+      case 'auth/network-request-failed':
+        return 'The network request failed. Check the connection and try again.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts were blocked. Wait a moment before trying again.';
+      case 'auth/operation-not-allowed':
+      case 'auth/configuration-not-found':
+        return 'Email and password sign-in is not enabled for this Firebase project yet.';
       default:
         return this.sanitizeFirebaseMessage(error, fallback);
     }

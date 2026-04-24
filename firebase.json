@@ -1,4 +1,9 @@
 {
+  "auth": {
+    "providers": {
+      "emailPassword": true
+    }
+  },
   "firestore": {
     "database": "(default)",
     "location": "asia-east1",

@@ -2,6 +2,14 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isFacilityOwner(userId) {
+      return isSignedIn() && userId is string && request.auth.uid == userId;
+    }
+
     function hasValidLocation(location) {
       return location is map
         && location.lat is number
@@ -9,7 +17,9 @@ service cloud.firestore {
     }
 
     function hasValidRoomTypes(roomTypes) {
-      return roomTypes is list && roomTypes.size() > 0 && roomTypes.size() <= 12;
+      return roomTypes is list
+        && roomTypes.size() > 0
+        && roomTypes.size() <= 12;
     }
 
     function hasValidStatus(status) {
@@ -85,69 +95,101 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
-    function hasValidUserPayload(data) {
+    function hasValidFacilityOwnership(data) {
+      return data.ownerUserId is string
+        && data.ownerUserId.size() > 5
+        && data.ownerDisplayName is string
+        && data.ownerDisplayName.size() > 1;
+    }
+
+    function hasValidFacilityDeletionState(data) {
+      return !data.keys().hasAny(['deletedAt', 'deletedByUserId'])
+        || (
+          isSignedIn()
+          && data.deletedAt is timestamp
+          && data.deletedByUserId is string
+          && data.deletedByUserId == request.auth.uid
+        );
+    }
+
+    function hasValidFacilityPayload(data) {
       return data.keys().hasAll([
-          'displayName',
-          'email',
-          'normalizedEmail',
-          'passwordHash',
-          'createdAt',
+          'name',
+          'category',
+          'description',
+          'location',
+          'landmark',
+          'address',
+          'area',
+          'contactNumber',
+          'website',
+          'totalRooms',
+          'availableRooms',
+          'roomTypes',
+          'status',
+          'sourceLabel',
+          'ownerUserId',
+          'ownerDisplayName',
           'updatedAt'
         ])
         && data.keys().hasOnly([
-          'displayName',
-          'email',
-          'normalizedEmail',
-          'passwordHash',
+          'name',
+          'category',
+          'description',
+          'location',
+          'coordinates',
+          'landmark',
+          'address',
+          'area',
+          'contactNumber',
+          'website',
+          'totalRooms',
+          'availableRooms',
+          'roomTypes',
+          'status',
+          'sourceLabel',
+          'ownerUserId',
+          'ownerDisplayName',
           'createdAt',
-          'updatedAt'
+          'updatedAt',
+          'deletedAt',
+          'deletedByUserId'
         ])
-        && data.displayName is string
-        && data.displayName.size() > 1
-        && data.email is string
-        && data.email.size() > 5
-        && data.normalizedEmail is string
-        && data.normalizedEmail.size() > 5
-        && data.normalizedEmail.matches('^[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$')
-        && data.passwordHash is string
-        && data.passwordHash.size() >= 64
+        && hasValidHospitalPayload(data)
+        && hasValidFacilityOwnership(data)
+        && hasValidFacilityDeletionState(data);
+    }
+
+    function isValidFacilityCreate(data) {
+      return hasValidFacilityPayload(data)
+        && isFacilityOwner(data.ownerUserId)
         && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && !data.keys().hasAny(['deletedAt', 'deletedByUserId']);
     }
 
-    function isValidCreate(data) {
-      return hasValidHospitalPayload(data)
-        && data.createdAt is timestamp;
-    }
-
-    function isValidUpdate(data) {
-      return hasValidHospitalPayload(data)
-        && data.createdAt == resource.data.createdAt;
-    }
-
-    function isValidUserCreate(data) {
-      return hasValidUserPayload(data);
+    function isValidFacilityUpdate(data) {
+      return hasValidFacilityPayload(data)
+        && isFacilityOwner(resource.data.ownerUserId)
+        && isFacilityOwner(data.ownerUserId)
+        && data.createdAt == resource.data.createdAt
+        && data.ownerUserId == resource.data.ownerUserId
+        && data.ownerDisplayName == resource.data.ownerDisplayName;
     }
 
     match /hospitals/{hospitalId} {
       allow read: if true;
-      allow create: if isValidCreate(request.resource.data);
-      allow update: if isValidUpdate(request.resource.data);
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
     match /facilities/{facilityId} {
       allow read: if true;
-      allow create: if isValidCreate(request.resource.data);
-      allow update: if isValidUpdate(request.resource.data);
+      allow create: if isValidFacilityCreate(request.resource.data);
+      allow update: if isValidFacilityUpdate(request.resource.data);
       allow delete: if false;
     }
 
     match /users/{userId} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if isValidUserCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if false;
     }
   }
 }

@@ -26,6 +26,9 @@ export interface HospitalRecord {
   createdAt: Date | null;
   updatedAt: Date | null;
   sourceLabel: string;
+  ownerUserId: string;
+  ownerDisplayName: string;
+  deletedAt: Date | null;
 }
 
 export interface HospitalDraft {

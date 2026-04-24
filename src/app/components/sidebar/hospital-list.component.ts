@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import type { HospitalRecord } from '../../models/hospital.model';
-import { formatRelativeTime } from '../../shared/utils/date-time.util';
 import { getHospitalStatusMeta } from '../../shared/utils/hospital-status.util';
 
 @Component({
@@ -26,15 +25,7 @@ export class HospitalListComponent {
     return hospital.landmark || hospital.area || hospital.address || 'Iloilo City';
   }
 
-  protected roomTypeSummary(hospital: HospitalRecord): string {
-    return hospital.roomTypes.length > 0 ? hospital.roomTypes.join(', ') : 'Room types pending update';
-  }
-
-  protected shortDescription(description: string): string {
-    return description.length > 120 ? `${description.slice(0, 117).trimEnd()}...` : description;
-  }
-
-  protected relativeTime(hospital: HospitalRecord): string {
-    return formatRelativeTime(hospital.updatedAt || hospital.createdAt);
+  protected roomSummary(hospital: HospitalRecord): string {
+    return `${hospital.availableRooms} / ${hospital.totalRooms} rooms`;
   }
 }
