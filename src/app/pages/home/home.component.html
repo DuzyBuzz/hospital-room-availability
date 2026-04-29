@@ -1,18 +1,74 @@
 <section class="maps-home-shell">
-  <app-navbar
-    class="maps-home-shell__navbar"
-    [dashboardTitle]="'Smart Hospital Room Availability in ILOILO'"
-    [subtitle]="'Live room availability across Iloilo City medical facilities.'"
-    [facilityCount]="hospitalService.totalHospitalCount()"
-    [openRooms]="hospitalService.totalAvailableRooms()"
-    [showLocateButton]="true"
-    [showMobilePanelButton]="true"
-    [mobilePanelButtonLabel]="'Results'"
-    [mobilePanelButtonCount]="hospitalService.filteredHospitals().length"
-    [mobilePanelExpanded]="mobileSidebarOpen()"
-    (locateRequested)="locateUser()"
-    (mobilePanelRequested)="toggleMobileSidebar()"
-  />
+  <header class="maps-topbar">
+    <div class="maps-topbar__brand">
+      <span class="maps-topbar__logo" aria-hidden="true">
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 122.88 110.11"><defs><style>.cls-1{fill:#d8453e;}.cls-1,.cls-2{fill-rule:evenodd;}</style></defs><title>hospital-building</title><path class="cls-1" d="M58.28,9.52h6.31a2.15,2.15,0,0,1,2.15,2.14v6.86H73.6a2.16,2.16,0,0,1,2.14,2.15V27a2.16,2.16,0,0,1-2.14,2.15H66.74v6.67a2.16,2.16,0,0,1-2.15,2.15H58.28a2.16,2.16,0,0,1-2.14-2.15V29.12H49.28A2.16,2.16,0,0,1,47.14,27V20.66a2.15,2.15,0,0,1,2.14-2.14h6.86V11.66a2.15,2.15,0,0,1,2.14-2.14Z"/><path class="cls-2" d="M53.29,82.87h16.3A3.15,3.15,0,0,1,72.73,86v20.9h16.1V3.2h-55V106.91H50.15V86a3.15,3.15,0,0,1,3.14-3.14Zm-22.7,24h0V34.13H3.2v72.78Zm61.44,0h27.65V34.13H92v72.78ZM1.6,110.11a1.6,1.6,0,0,1-1.6-1.6V33.27a2.36,2.36,0,0,1,2.35-2.35H30.59V2.81a2.79,2.79,0,0,1,.82-2h0a2.86,2.86,0,0,1,2-.82H89.22a2.84,2.84,0,0,1,2,.82l.12.14A2.76,2.76,0,0,1,92,2.81V30.92h28.48a2.35,2.35,0,0,1,1.66.69h0a2.37,2.37,0,0,1,.69,1.66v75.23a1.6,1.6,0,0,1-1.6,1.6Zm98.9-40.53H112a.24.24,0,0,1,.26.2V75a.24.24,0,0,1-.26.2H100.5c-.14,0-.27-.09-.27-.2V69.78c0-.11.13-.2.27-.2Zm-89.71,0H22.25c.15,0,.27.09.27.2V75c0,.11-.12.2-.27.2H10.79c-.14,0-.27-.09-.27-.2V69.78c0-.11.12-.2.27-.2ZM100.5,58.16H112a.24.24,0,0,1,.26.2v5.22c0,.1-.12.19-.26.19H100.5c-.14,0-.27-.09-.27-.19V58.36c0-.11.13-.2.27-.2Zm0-11.42H112a.24.24,0,0,1,.26.2v5.22c0,.1-.12.19-.26.19H100.5c-.14,0-.27-.09-.27-.19V46.94c0-.11.13-.2.27-.2ZM10.79,58.16H22.25c.15,0,.27.09.27.2v5.22c0,.1-.12.19-.27.19H10.79c-.14,0-.27-.09-.27-.19V58.36c0-.11.12-.2.27-.2Zm0-11.42H22.25c.15,0,.27.09.27.2v5.22c0,.1-.12.19-.27.19H10.79c-.14,0-.27-.09-.27-.19V46.94c0-.11.12-.2.27-.2Zm62,17.6h8.81a.27.27,0,0,1,.27.27V74a.27.27,0,0,1-.27.27H72.81a.27.27,0,0,1-.27-.27V64.61a.27.27,0,0,1,.27-.27Zm-16.21,0H66a.27.27,0,0,1,.27.27V74a.27.27,0,0,1-.27.27H56.6a.27.27,0,0,1-.27-.27V64.61a.27.27,0,0,1,.27-.27ZM41,64.34h8.81a.28.28,0,0,1,.27.27V74a.28.28,0,0,1-.27.27H41a.27.27,0,0,1-.27-.27V64.61a.27.27,0,0,1,.27-.27ZM72.81,46h8.81a.27.27,0,0,1,.27.27v9.43a.27.27,0,0,1-.27.27H72.81a.27.27,0,0,1-.27-.27V46.3a.27.27,0,0,1,.27-.27ZM56.6,46H66a.27.27,0,0,1,.27.27v9.43A.27.27,0,0,1,66,56H56.6a.27.27,0,0,1-.27-.27V46.3A.27.27,0,0,1,56.6,46ZM41,46h8.81a.28.28,0,0,1,.27.27v9.43a.28.28,0,0,1-.27.27H41a.27.27,0,0,1-.27-.27V46.3A.27.27,0,0,1,41,46Z"/></svg>
+      </span>
+
+      <div class="maps-topbar__copy">
+        <p class="maps-topbar__title">Smart Hospital Room Availability in ILOILO</p>
+        <p class="maps-topbar__subtitle">Live room availability across Iloilo medical facilities.</p>
+      </div>
+    </div>
+
+    <div class="maps-topbar__actions">
+      <button
+        type="button"
+        class="maps-topbar__icon-button"
+        (click)="locateUser()"
+        aria-label="Locate me on the map"
+      >
+        <i class="pi pi-send" aria-hidden="true"></i>
+      </button>
+
+      <a routerLink="/facility" class="maps-topbar__action hidden lg:inline-flex">Contribute</a>
+
+      <button
+        type="button"
+        class="maps-topbar__action lg:hidden"
+        (click)="toggleMobileSidebar()"
+        [attr.aria-expanded]="mobileSidebarOpen()"
+        aria-controls="hospital-results-drawer"
+      >
+        Results
+        <span class="maps-topbar__count">{{ hospitalService.filteredHospitals().length }}</span>
+      </button>
+
+      <div class="maps-user-menu">
+        @if (authService.isAuthenticated()) {
+          <button
+            type="button"
+            class="maps-user-menu__trigger"
+            (click)="toggleUserMenu()"
+            [attr.aria-expanded]="userMenuOpen()"
+            aria-label="Open account menu"
+          >
+            {{ authService.userInitials() }}
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="maps-user-menu__trigger maps-user-menu__trigger--guest"
+            (click)="authService.openModal('signIn')"
+            aria-label="Sign in"
+          >
+<i class="pi pi-spin pi-spinner" style="font-size: 2rem"></i>
+          </button>
+        }
+
+        @if (authService.isAuthenticated() && userMenuOpen()) {
+          <div class="maps-user-menu__dropdown" role="menu" aria-label="User account options">
+            <button type="button" class="maps-user-menu__item" role="menuitem" (click)="openProfileDialog()">
+              Profile
+            </button>
+            <button type="button" class="maps-user-menu__item maps-user-menu__item--danger" role="menuitem" (click)="signOutFromMenu()">
+              Sign out
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  </header>
 
   <app-map
     class="maps-home-shell__map"
@@ -24,7 +80,7 @@
     [allowLocationSelection]="false"
     [draftLocation]="null"
     [displayMode]="'full'"
-    (hospitalSelected)="selectHospital($event)"
+    (hospitalSelected)="selectHospitalFromMap($event)"
   />
 
   <ng-template #sidebarContent>
@@ -32,9 +88,9 @@
       <div class="maps-sidebar-shell__sticky">
         <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-0.5 pt-0.5">
           <div class="min-w-0">
-            <p class="m-0 text-[0.64rem] font-bold uppercase tracking-[0.14em] text-slate-400">Live results</p>
+            <p class="m-0 text-[0.64rem] font-bold uppercase tracking-[0.14em] text-green-400 mt-3">Live results</p>
             <p class="mt-1 text-[1rem] font-bold tracking-[-0.02em] text-slate-900">Find hospital rooms faster</p>
-            <p class="mt-1 text-[0.78rem] leading-[1.45] text-slate-500 max-lg:hidden">Search, filter, and inspect live availability without leaving the map.</p>
+            <!-- <p class="mt-1 text-[0.78rem] leading-[1.45] text-slate-500 max-lg:hidden">Search, filter, and inspect live availability without leaving the map.</p> -->
           </div>
 
           <span class="inline-flex min-w-8 items-center justify-center rounded-full bg-blue-50 px-2.5 py-1.5 text-[0.82rem] font-bold text-blue-700">{{ hospitalService.filteredHospitals().length }}</span>
@@ -51,7 +107,7 @@
           />
         </label>
 
-        <div class="maps-filter-cluster maps-chip-scroller" role="group" aria-label="Filter hospitals by availability">
+        <!-- <div class="maps-filter-cluster maps-chip-scroller" role="group" aria-label="Filter hospitals by availability">
           @for (statusOption of hospitalService.statusOptions; track statusOption.status) {
             <button
               type="button"
@@ -66,7 +122,7 @@
               <span>{{ statusOption.label }}</span>
             </button>
           }
-        </div>
+        </div> -->
 
         <div class="maps-quick-filter">
           <p class="maps-quick-filter__label">Room type</p>
@@ -135,6 +191,18 @@
         }
 
         <div class="maps-sidebar-card maps-sidebar-card--details">
+          <div class="flex items-center justify-between gap-3 px-1 pb-2">
+            <p class="m-0 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-slate-400">Selected facility</p>
+            <button
+              type="button"
+              class="maps-topbar__action"
+              (click)="openDetailsDialog()"
+              [disabled]="!hospitalService.selectedHospital()"
+            >
+              View full info
+            </button>
+          </div>
+
           <app-hospital-details [hospital]="hospitalService.filteredHospitals().length > 0 ? hospitalService.selectedHospital() : null" />
         </div>
 
@@ -150,27 +218,24 @@
     </div>
   </ng-template>
 
-  <app-sidebar
-    [visible]="true"
-    [modal]="false"
-    [dismissible]="false"
-    [closable]="false"
-    [blockScroll]="false"
-    [baseZIndex]="1100"
-    [styleClass]="'maps-prime-drawer maps-prime-drawer--desktop maps-prime-drawer--home'"
-  >
+  <aside class="maps-overlay-panel hidden lg:flex" aria-label="Hospital search results">
     <ng-container [ngTemplateOutlet]="sidebarContent" />
-  </app-sidebar>
+  </aside>
 
-  <app-sidebar
-    [visible]="mobileSidebarOpen()"
-    (visibleChange)="handleMobileSidebarVisibilityChange($event)"
-    [position]="'left'"
-    [modal]="true"
-    [dismissible]="true"
-    [closable]="false"
-    [baseZIndex]="1200"
-    [styleClass]="'maps-prime-drawer maps-prime-drawer--mobile maps-prime-drawer--home-mobile'"
+  @if (mobileSidebarOpen()) {
+    <button
+      type="button"
+      class="maps-mobile-backdrop lg:hidden"
+      (click)="closeMobileSidebar()"
+      aria-label="Close hospital results drawer"
+    ></button>
+  }
+
+  <aside
+    id="hospital-results-drawer"
+    class="maps-mobile-drawer lg:hidden"
+    [class.maps-mobile-drawer--open]="mobileSidebarOpen()"
+    aria-label="Hospital search results"
   >
     <div class="maps-mobile-drawer__frame">
       <div class="maps-mobile-drawer__header">
@@ -193,5 +258,141 @@
         <ng-container [ngTemplateOutlet]="sidebarContent" />
       </div>
     </div>
-  </app-sidebar>
+  </aside>
+
+  <p-dialog
+    [visible]="detailsDialogOpen()"
+    (visibleChange)="detailsDialogOpen.set($event)"
+    [modal]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="true"
+    [breakpoints]="{ '960px': '95vw' }"
+    [style]="{ width: '42rem' }"
+    header="Facility details"
+  >
+    <div class="space-y-4">
+      <app-hospital-details [hospital]="hospitalService.selectedHospital()" />
+
+      <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <p class="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Facility rooms</p>
+          <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+            {{ selectedHospitalRooms().length }} total
+          </span>
+        </div>
+
+        @if (selectedHospitalRooms().length > 0) {
+          <div class="space-y-2">
+            @for (room of selectedHospitalRooms(); track room.id) {
+              <article class="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                <div class="min-w-0">
+                  <p class="m-0 text-sm font-semibold text-slate-900">{{ room.roomNumber }}</p>
+                  <p class="m-0 text-xs text-slate-500">{{ room.roomTypeName }}</p>
+                  @if (room.remarks) {
+                    <p class="m-0 mt-1 text-xs text-slate-500">{{ room.remarks }}</p>
+                  }
+                </div>
+
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1" [class]="roomStatusClass(room.status)">
+                  {{ room.status }}
+                </span>
+              </article>
+            }
+          </div>
+        } @else {
+          <p class="m-0 text-sm text-slate-500">No room records available for this facility yet.</p>
+        }
+      </section>
+    </div>
+  </p-dialog>
+
+  <p-dialog
+    [visible]="profileDialogOpen()"
+    (visibleChange)="profileDialogOpen.set($event)"
+    [modal]="true"
+    [dismissableMask]="!authService.busy()"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="!authService.busy()"
+    [breakpoints]="{ '960px': '95vw' }"
+    [style]="{ width: '38rem' }"
+    header="Update profile"
+  >
+    <form [formGroup]="profileForm" (ngSubmit)="submitProfileUpdate()" class="space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p class="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Step 1: Validate identity</p>
+        <label class="mt-2 block">
+          <span class="mb-1 block text-xs font-semibold text-slate-500">Current password</span>
+          <input
+            type="password"
+            formControlName="currentPassword"
+            class="gmaps-form-input"
+            placeholder="Enter current password"
+          />
+        </label>
+
+        <div class="mt-3 flex items-center gap-3">
+          <button pButton type="button" severity="secondary" [outlined]="true" (click)="validateProfileAccess()" [loading]="authService.busy()">
+            Validate first
+          </button>
+
+          @if (profileValidated()) {
+            <span class="text-xs font-semibold text-emerald-700">Validated. You can now edit credentials.</span>
+          }
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <p class="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Step 2: Update credentials</p>
+
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <label class="block sm:col-span-2">
+            <span class="mb-1 block text-xs font-semibold text-slate-500">User name</span>
+            <input type="text" formControlName="displayName" class="gmaps-form-input" [disabled]="!profileValidated()" />
+          </label>
+
+          <label class="block sm:col-span-2">
+            <span class="mb-1 block text-xs font-semibold text-slate-500">Email</span>
+            <input type="email" formControlName="email" class="gmaps-form-input" [disabled]="!profileValidated()" />
+          </label>
+
+          <label class="block">
+            <span class="mb-1 block text-xs font-semibold text-slate-500">New password</span>
+            <input
+              type="password"
+              formControlName="newPassword"
+              class="gmaps-form-input"
+              [disabled]="!profileValidated()"
+              placeholder="Leave blank to keep current"
+            />
+          </label>
+
+          <label class="block">
+            <span class="mb-1 block text-xs font-semibold text-slate-500">Confirm new password</span>
+            <input
+              type="password"
+              formControlName="confirmPassword"
+              class="gmaps-form-input"
+              [disabled]="!profileValidated()"
+            />
+          </label>
+        </div>
+      </div>
+
+      @if (authService.errorMessage(); as errorMessage) {
+        <p class="m-0 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ errorMessage }}</p>
+      }
+
+      <div class="flex flex-wrap justify-end gap-2">
+        <button pButton type="button" severity="secondary" [outlined]="true" (click)="closeProfileDialog()" [disabled]="authService.busy()">
+          Cancel
+        </button>
+        <button pButton type="submit" severity="contrast" [disabled]="!profileValidated() || authService.busy()" [loading]="authService.busy()">
+          Save profile
+        </button>
+      </div>
+    </form>
+  </p-dialog>
 </section>

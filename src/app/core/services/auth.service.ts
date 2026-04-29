@@ -1,11 +1,13 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Auth, User as FirebaseUser } from 'firebase/auth';
+import { serverTimestamp } from 'firebase/firestore';
 import {
   ensureFirebaseAuthPersistence,
   getFirebaseAuth,
   loadFirebaseAuthModule,
 } from '../../environment/firebase.environment';
 import { FeedbackService } from './feedback.service';
+import { FirestoreService } from './firestore.service';
 
 export type AuthMode = 'signIn' | 'signUp';
 
@@ -15,11 +17,19 @@ interface SessionUser {
   displayName: string;
 }
 
+interface ProfileUpdatePayload {
+  displayName?: string;
+  email?: string;
+  newPassword?: string;
+  currentPassword: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
   private readonly feedbackService = inject(FeedbackService);
+  private readonly firestoreService = inject(FirestoreService);
   private readonly firebaseAuthPromise = getFirebaseAuth();
 
   readonly user = signal<SessionUser | null>(null);
@@ -38,6 +48,21 @@ export class AuthService {
     }
 
     return user.displayName.trim() || user.email.split('@')[0] || 'Facility manager';
+  });
+  readonly userInitials = computed(() => {
+    const displayName = this.displayName().trim();
+
+    if (!displayName) {
+      return 'GU';
+    }
+
+    const parts = displayName.split(/\s+/).filter(Boolean);
+
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase();
   });
 
   constructor() {
@@ -101,7 +126,22 @@ export class AuthService {
         await credential.user.reload();
       }
 
-      this.user.set(this.toSessionUser(firebaseAuth.currentUser ?? credential.user));
+      const sessionUser = this.toSessionUser(firebaseAuth.currentUser ?? credential.user);
+      this.user.set(sessionUser);
+
+      // Write to users collection per new schema (role: public by default)
+      void this.firestoreService
+        .setDocument('users', sessionUser.id, {
+          email: sessionUser.email,
+          display_name: sessionUser.displayName,
+          role: 'public',
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        })
+        .catch(() => {
+          // Non-fatal: user profile save failure does not block authentication
+        });
+
       this.modalOpen.set(false);
       this.feedbackService.success('Account created', 'Your facility account is ready for new listings.');
     } catch (error) {
@@ -129,6 +169,85 @@ export class AuthService {
         this.humanizeFirebaseAuthError(error, 'We could not clear your session right now.'),
         'Sign out failed',
       );
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async validateCurrentPassword(currentPassword: string): Promise<boolean> {
+    this.errorMessage.set(null);
+
+    try {
+      await this.reauthenticateCurrentUser(currentPassword);
+      this.feedbackService.success('Identity verified', 'You can now update your profile credentials.');
+      return true;
+    } catch (error) {
+      this.setErrorMessage(
+        this.humanizeFirebaseAuthError(error, 'Current password validation failed.'),
+        'Validation failed',
+      );
+      return false;
+    }
+  }
+
+  async updateProfileCredentials(payload: ProfileUpdatePayload): Promise<boolean> {
+    const nextDisplayName = payload.displayName?.trim() ?? '';
+    const nextEmail = payload.email?.trim() ?? '';
+    const nextPassword = payload.newPassword?.trim() ?? '';
+
+    if (!payload.currentPassword.trim()) {
+      this.setErrorMessage('Enter your current password to continue.', 'Validation required');
+      return false;
+    }
+
+    this.busy.set(true);
+    this.errorMessage.set(null);
+
+    try {
+      const { firebaseAuth, firebaseAuthModule } = await this.getAuthDependencies();
+      const currentUser = firebaseAuth.currentUser;
+
+      if (!currentUser || !currentUser.email) {
+        throw new Error('No authenticated account available.');
+      }
+
+      await this.reauthenticateCurrentUser(payload.currentPassword);
+
+      if (nextDisplayName.length > 0 && nextDisplayName !== (currentUser.displayName ?? '').trim()) {
+        await firebaseAuthModule.updateProfile(currentUser, { displayName: nextDisplayName });
+      }
+
+      if (nextEmail.length > 0 && nextEmail !== currentUser.email) {
+        await firebaseAuthModule.updateEmail(currentUser, nextEmail);
+      }
+
+      if (nextPassword.length > 0) {
+        if (nextPassword.length < 6) {
+          throw new Error('Passwords must be at least 6 characters long.');
+        }
+
+        await firebaseAuthModule.updatePassword(currentUser, nextPassword);
+      }
+
+      await currentUser.reload();
+      const latestUser = firebaseAuth.currentUser ?? currentUser;
+      const sessionUser = this.toSessionUser(latestUser);
+      this.user.set(sessionUser);
+
+      await this.firestoreService.updateDocument('users', sessionUser.id, {
+        email: sessionUser.email,
+        display_name: sessionUser.displayName,
+        updated_at: serverTimestamp(),
+      });
+
+      this.feedbackService.success('Profile updated', 'Your account credentials were updated successfully.');
+      return true;
+    } catch (error) {
+      this.setErrorMessage(
+        this.humanizeFirebaseAuthError(error, 'We could not update your profile right now.'),
+        'Profile update failed',
+      );
+      return false;
     } finally {
       this.busy.set(false);
     }
@@ -191,6 +310,18 @@ export class AuthService {
       firebaseAuth,
       firebaseAuthModule,
     };
+  }
+
+  private async reauthenticateCurrentUser(currentPassword: string): Promise<void> {
+    const { firebaseAuth, firebaseAuthModule } = await this.getAuthDependencies();
+    const currentUser = firebaseAuth.currentUser;
+
+    if (!currentUser || !currentUser.email) {
+      throw new Error('No authenticated account available.');
+    }
+
+    const credential = firebaseAuthModule.EmailAuthProvider.credential(currentUser.email, currentPassword.trim());
+    await firebaseAuthModule.reauthenticateWithCredential(currentUser, credential);
   }
 
   private toSessionUser(user: FirebaseUser): SessionUser {

@@ -1,7 +1,9 @@
-import type { Coordinates, HospitalStatus } from '../../models/hospital.model';
+import type { FacilityType } from '../../models/hospital.model';
+import type { RoomDraft } from '../../models/room.model';
 
-export interface HospitalFormValue {
+export interface FacilityFormValue {
   name: string;
+  type: FacilityType;
   category: string;
   description: string;
   landmark: string;
@@ -9,10 +11,10 @@ export interface HospitalFormValue {
   area: string;
   contactNumber: string;
   website: string;
-  totalRooms: number;
-  availableRooms: number;
-  roomTypes: string[];
-  customRoomTypes: string;
-  status: HospitalStatus;
-  location: Coordinates | null;
+  location: { lat: number; lng: number } | null;
+  /** Individual rooms managed inline in the form */
+  rooms: RoomDraft[];
 }
+
+/** @deprecated use FacilityFormValue */
+export type HospitalFormValue = FacilityFormValue;

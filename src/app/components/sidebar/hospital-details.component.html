@@ -4,7 +4,14 @@
       <div class="min-w-0 flex-1">
         <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Selected hospital</p>
         <p class="mt-1 truncate text-[15px] font-semibold text-slate-900">{{ selectedHospital.name }}</p>
-        <p class="mt-0.5 text-xs text-slate-500">{{ selectedHospital.category }}</p>
+        <p class="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+          {{ selectedHospital.category }}
+          @if (selectedHospital.isVerified) {
+            <span class="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-sky-200">
+              <i class="pi pi-verified text-[9px]"></i> Verified
+            </span>
+          }
+        </p>
       </div>
 
       <span
@@ -57,7 +64,7 @@
         <dt class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500" aria-hidden="true">
           <i class="pi pi-building text-xs"></i>
         </dt>
-        <dd>{{ selectedHospital.availableRooms }} / {{ selectedHospital.totalRooms }} rooms</dd>
+        <dd>{{ selectedHospital.availableRooms }} / {{ selectedHospital.totalRooms }} rooms available</dd>
       </div>
     </dl>
 

@@ -5,8 +5,10 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  query,
   setDoc,
   updateDoc,
+  where,
   type DocumentData,
 } from 'firebase/firestore';
 import { Observable, of } from 'rxjs';
@@ -29,6 +31,31 @@ export class FirestoreService {
     return new Observable<T[]>((subscriber) => {
       const unsubscribe = onSnapshot(
         collection(this.firestore, path),
+        (snapshot) => {
+          subscriber.next(snapshot.docs.map((documentSnapshot) => mapper(documentSnapshot.id, documentSnapshot.data())));
+        },
+        (error) => {
+          subscriber.error(error);
+        },
+      );
+
+      return unsubscribe;
+    });
+  }
+
+  streamCollectionWhere<T>(
+    path: string,
+    field: string,
+    value: string | number | boolean,
+    mapper: (id: string, data: DocumentData) => T,
+  ): Observable<T[]> {
+    if (!this.shouldUseFirestore()) {
+      return of([]);
+    }
+
+    return new Observable<T[]>((subscriber) => {
+      const unsubscribe = onSnapshot(
+        query(collection(this.firestore, path), where(field, '==', value)),
         (snapshot) => {
           subscriber.next(snapshot.docs.map((documentSnapshot) => mapper(documentSnapshot.id, documentSnapshot.data())));
         },

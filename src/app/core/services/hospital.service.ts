@@ -1,16 +1,16 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+﻿import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { Timestamp, serverTimestamp, type DocumentData } from 'firebase/firestore';
+import { serverTimestamp, Timestamp, type DocumentData } from 'firebase/firestore';
 import { catchError, combineLatest, map, of, tap } from 'rxjs';
 import type {
   Coordinates,
+  FacilityDraft,
+  FacilityType,
   HospitalCollectionPath,
-  HospitalDraft,
   HospitalRecord,
   HospitalStatus,
 } from '../../models/hospital.model';
-import { DEFAULT_ROOM_TYPES } from '../../models/room-type.model';
-import type { HospitalFormValue } from '../../shared/interfaces/hospital-form.interface';
+import type { FacilityFormValue } from '../../shared/interfaces/hospital-form.interface';
 import {
   DEFAULT_STATUS_FILTERS,
   type StatusFilterState,
@@ -18,20 +18,20 @@ import {
 import { formatRelativeTime } from '../../shared/utils/date-time.util';
 import {
   HOSPITAL_STATUS_OPTIONS,
-  deriveHospitalStatus,
+  deriveHospitalStatusFromRooms,
   getHospitalStatusMeta,
 } from '../../shared/utils/hospital-status.util';
 import { AuthService } from './auth.service';
-import { FeedbackService } from './feedback.service';
 import { FirestoreService } from './firestore.service';
+import { RoomService } from './room.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class HospitalService {
   private readonly authService = inject(AuthService);
-  private readonly feedbackService = inject(FeedbackService);
   private readonly firestoreService = inject(FirestoreService);
+  private readonly roomService = inject(RoomService);
 
   readonly saving = signal(false);
   readonly loading = signal(true);
@@ -46,65 +46,70 @@ export class HospitalService {
 
   readonly statusOptions = HOSPITAL_STATUS_OPTIONS;
 
-  private readonly liveHospitals = toSignal(
+  private readonly liveFacilities = toSignal(
     combineLatest([
       this.firestoreService.streamCollection('hospitals', (id, data) =>
-        this.mapHospital(id, 'hospitals', data),
+        this.mapFacility(id, 'hospitals', data),
       ),
       this.firestoreService.streamCollection('facilities', (id, data) =>
-        this.mapHospital(id, 'facilities', data),
+        this.mapFacility(id, 'facilities', data),
       ),
     ]).pipe(
       tap(() => {
         this.loading.set(false);
         this.errorMessage.set(null);
       }),
-      map(([hospitals, facilities]) => [...hospitals, ...facilities].sort((left, right) => this.sortByUpdatedAt(left, right))),
+      map(([hospitals, facilities]) =>
+        [...hospitals, ...facilities].sort((a, b) => this.sortByUpdatedAt(a, b)),
+      ),
       catchError((error) => {
         this.loading.set(false);
-        const message = this.humanizeFirestoreError(error);
-
-        this.errorMessage.set(message);
-        this.feedbackService.error('Firestore sync issue', message, { life: 6000 });
-
+        this.errorMessage.set(this.humanizeFirestoreError(error));
         return of([] as HospitalRecord[]);
       }),
     ),
     { initialValue: [] as HospitalRecord[] },
   );
 
-  readonly hospitals = computed(() => this.liveHospitals().filter((hospital) => hospital.deletedAt === null));
+  /** Facilities enriched with live room data */
+  readonly hospitals = computed(() => {
+    const facilities = this.liveFacilities().filter((f) => f.deletedAt === null);
+    const roomsByFacility = this.roomService.roomsByFacility();
+
+    return facilities.map((facility) => {
+      const rooms = roomsByFacility.get(facility.id) ?? [];
+      const totalRooms = rooms.length;
+      const availableRooms = rooms.filter((r) => r.status === 'available').length;
+      const roomTypes = Array.from(new Set(rooms.map((r) => r.roomTypeName).filter(Boolean)));
+      const status = deriveHospitalStatusFromRooms(availableRooms, totalRooms);
+
+      return { ...facility, totalRooms, availableRooms, roomTypes, status };
+    });
+  });
+
   readonly totalHospitalCount = computed(() => this.hospitals().length);
   readonly totalAvailableRooms = computed(() =>
-    this.hospitals().reduce((sum, hospital) => sum + hospital.availableRooms, 0),
+    this.hospitals().reduce((sum, h) => sum + h.availableRooms, 0),
   );
   readonly latestHospitalUpdate = computed(() => this.hospitals()[0] ?? null);
   readonly roomTypeOptions = computed(() => {
-    const roomTypes = new Set<string>(DEFAULT_ROOM_TYPES);
-
+    const roomTypes = new Set<string>();
     for (const hospital of this.hospitals()) {
-      for (const roomType of hospital.roomTypes) {
-        roomTypes.add(roomType);
+      for (const rt of hospital.roomTypes) {
+        roomTypes.add(rt);
       }
     }
-
-    return Array.from(roomTypes).sort((left, right) => left.localeCompare(right));
+    return Array.from(roomTypes).sort((a, b) => a.localeCompare(b));
   });
   readonly areaOptions = computed(() => {
-    const areaOptions = new Set<string>();
-
+    const areas = new Set<string>();
     for (const hospital of this.hospitals()) {
-      if (hospital.area.trim().length > 0) {
-        areaOptions.add(hospital.area.trim());
-      }
-
-      if (hospital.landmark.trim().length > 0) {
-        areaOptions.add(hospital.landmark.trim());
-      }
+      if (hospital.area.trim()) areas.add(hospital.area.trim());
+      if (hospital.landmark.trim()) areas.add(hospital.landmark.trim());
     }
-
-    return Array.from(areaOptions).sort((left, right) => left.localeCompare(right));
+    return Array.from(areas).sort((a, b) => a.localeCompare(b));
   });
+
   readonly filteredHospitals = computed(() => {
     const searchTerm = this.searchTerm().trim().toLowerCase();
     const selectedRoomType = this.selectedRoomType();
@@ -122,7 +127,7 @@ export class HospitalService {
 
       const matchesStatus = activeStatuses[hospital.status];
       const matchesRoomType =
-        selectedRoomType === 'all' || hospital.roomTypes.some((roomType) => roomType === selectedRoomType);
+        selectedRoomType === 'all' || hospital.roomTypes.some((rt) => rt === selectedRoomType);
       const matchesArea =
         selectedArea === 'all' ||
         selectedArea.length === 0 ||
@@ -132,13 +137,14 @@ export class HospitalService {
       return matchesSearch && matchesStatus && matchesRoomType && matchesArea;
     });
   });
+
   readonly selectedHospital = computed(() => {
     const selectedHospitalId = this.selectedHospitalId();
     const filteredHospitals = this.filteredHospitals();
 
     return (
-      filteredHospitals.find((hospital) => hospital.id === selectedHospitalId) ??
-      this.hospitals().find((hospital) => hospital.id === selectedHospitalId) ??
+      filteredHospitals.find((h) => h.id === selectedHospitalId) ??
+      this.hospitals().find((h) => h.id === selectedHospitalId) ??
       filteredHospitals[0] ??
       this.hospitals()[0] ??
       null
@@ -146,24 +152,22 @@ export class HospitalService {
   });
 
   constructor() {
-    effect(
-      () => {
-        const hospitals = this.hospitals();
-        const filteredHospitals = this.filteredHospitals();
-        const selectedHospitalId = this.selectedHospitalId();
+    effect(() => {
+      const hospitals = this.hospitals();
+      const filteredHospitals = this.filteredHospitals();
+      const selectedHospitalId = this.selectedHospitalId();
 
-        if (hospitals.length === 0) {
-          this.selectedHospitalId.set(null);
-          return;
-        }
+      if (hospitals.length === 0) {
+        this.selectedHospitalId.set(null);
+        return;
+      }
 
-        const preferredCollection = filteredHospitals.length > 0 ? filteredHospitals : hospitals;
+      const preferredCollection = filteredHospitals.length > 0 ? filteredHospitals : hospitals;
 
-        if (!selectedHospitalId || !preferredCollection.some((hospital) => hospital.id === selectedHospitalId)) {
-          this.selectedHospitalId.set(preferredCollection[0]?.id ?? null);
-        }
-      },
-    );
+      if (!selectedHospitalId || !preferredCollection.some((h) => h.id === selectedHospitalId)) {
+        this.selectedHospitalId.set(preferredCollection[0]?.id ?? null);
+      }
+    });
   }
 
   updateSearchTerm(value: string): void {
@@ -182,9 +186,9 @@ export class HospitalService {
   }
 
   toggleStatus(status: HospitalStatus): void {
-    this.activeStatuses.update((currentState) => ({
-      ...currentState,
-      [status]: !currentState[status],
+    this.activeStatuses.update((current) => ({
+      ...current,
+      [status]: !current[status],
     }));
   }
 
@@ -206,13 +210,12 @@ export class HospitalService {
 
   canCurrentUserManage(hospital: HospitalRecord | null): boolean {
     const currentUserId = this.authService.user()?.id ?? null;
-
     return (
-      hospital !== null
-      && hospital.collectionPath === 'facilities'
-      && hospital.ownerUserId.trim().length > 0
-      && currentUserId !== null
-      && hospital.ownerUserId === currentUserId
+      hospital !== null &&
+      hospital.collectionPath === 'facilities' &&
+      hospital.ownerUserId.trim().length > 0 &&
+      currentUserId !== null &&
+      hospital.ownerUserId === currentUserId
     );
   }
 
@@ -222,7 +225,7 @@ export class HospitalService {
   }
 
   statusCount(status: HospitalStatus): number {
-    return this.hospitals().filter((hospital) => hospital.status === status).length;
+    return this.hospitals().filter((h) => h.status === status).length;
   }
 
   statusMeta(status: HospitalStatus) {
@@ -246,7 +249,7 @@ export class HospitalService {
   }
 
   async saveHospital(
-    formValue: HospitalFormValue,
+    formValue: FacilityFormValue,
     editingHospital: HospitalRecord | null,
   ): Promise<string | null> {
     this.saving.set(true);
@@ -255,7 +258,7 @@ export class HospitalService {
 
     if (!this.authService.isAuthenticated()) {
       this.saving.set(false);
-      this.setErrorFeedback('Authentication required', 'Sign in to add or update a medical facility listing.');
+      this.errorMessage.set('Sign in to add or update a medical facility listing.');
       return null;
     }
 
@@ -263,80 +266,65 @@ export class HospitalService {
 
     if (!currentUser) {
       this.saving.set(false);
-      this.setErrorFeedback('Authentication required', 'Sign in again before managing facilities.');
+      this.errorMessage.set('Sign in again before managing facilities.');
       return null;
     }
 
     if (editingHospital && !this.canCurrentUserManage(editingHospital)) {
       this.saving.set(false);
-      this.setErrorFeedback('Permission denied', 'Only the user who created this facility can edit it.');
+      this.errorMessage.set('Only the user who created this facility can edit it.');
       return null;
     }
-
-    const roomTypes = this.normalizeRoomTypes([
-      ...formValue.roomTypes,
-      ...formValue.customRoomTypes
-        .split(',')
-        .map((roomType) => roomType.trim())
-        .filter((roomType) => roomType.length > 0),
-    ]);
 
     if (!formValue.location) {
       this.saving.set(false);
-      this.setErrorFeedback('Location required', 'Click on the map to choose the exact medical facility location.');
+      this.errorMessage.set('Click on the map to choose the exact medical facility location.');
       return null;
     }
 
-    if (roomTypes.length === 0) {
-      this.saving.set(false);
-      this.setErrorFeedback('Room type required', 'Select at least one room type before saving this record.');
-      return null;
-    }
-
-    if (formValue.availableRooms > formValue.totalRooms) {
-      this.saving.set(false);
-      this.setErrorFeedback('Invalid room counts', 'Available rooms cannot be greater than the total room count.');
-      return null;
-    }
-
-    const draft = this.createDraft(formValue, roomTypes, editingHospital);
-    const payload = {
+    const draft = this.createDraft(formValue, editingHospital);
+    const payload: Record<string, unknown> = {
       name: draft.name,
+      type: draft.type,
       category: draft.category,
       description: draft.description,
-      location: draft.location,
-      coordinates: draft.location,
+      latitude: draft.latitude,
+      longitude: draft.longitude,
       landmark: draft.landmark,
       address: draft.address,
       area: draft.area,
       contactNumber: draft.contactNumber,
       website: draft.website,
-      totalRooms: draft.totalRooms,
-      availableRooms: draft.availableRooms,
-      roomTypes: draft.roomTypes,
-      status: draft.status,
       sourceLabel: draft.sourceLabel,
+      isVerified: editingHospital?.isVerified ?? false,
       ownerUserId: editingHospital?.ownerUserId ?? currentUser.id,
       ownerDisplayName: editingHospital?.ownerDisplayName ?? currentUser.displayName,
       updatedAt: serverTimestamp(),
-    } satisfies Record<string, unknown>;
+    };
 
     try {
+      let facilityId: string;
+
       if (editingHospital) {
         await this.firestoreService.updateDocument(editingHospital.collectionPath, editingHospital.id, payload);
-        this.setSuccessFeedback('Facility updated', 'Listing updated. The map and directory refresh automatically.');
-        return editingHospital.id;
+        facilityId = editingHospital.id;
+        this.saveMessage.set('Listing updated. The map and directory refresh automatically.');
+      } else {
+        facilityId = await this.firestoreService.addDocument('facilities', {
+          ...payload,
+          createdAt: serverTimestamp(),
+          deletedAt: null,
+        });
+        this.saveMessage.set('Listing created. Visitors can now see it on the map and in the directory.');
       }
 
-      const hospitalId = await this.firestoreService.addDocument('facilities', {
-        ...payload,
-        createdAt: serverTimestamp(),
-      });
+      // Save per-room data to the rooms collection
+      const existingRooms = this.roomService.getRoomsForFacility(facilityId);
+      await this.roomService.saveRoomsForFacility(facilityId, formValue.rooms, existingRooms);
 
-      this.setSuccessFeedback('Facility added', 'Listing created. Visitors can now see it on the map and in the directory.');
-      return hospitalId;
+      return facilityId;
     } catch (error) {
-      this.setErrorFeedback('Firestore save failed', this.humanizeFirestoreError(error));
+      this.errorMessage.set(this.humanizeFirestoreError(error));
       return null;
     } finally {
       this.saving.set(false);
@@ -352,13 +340,13 @@ export class HospitalService {
 
     if (!currentUser) {
       this.saving.set(false);
-      this.setErrorFeedback('Authentication required', 'Sign in before deleting a facility listing.');
+      this.errorMessage.set('Sign in before deleting a facility listing.');
       return false;
     }
 
     if (!hospital || !this.canCurrentUserManage(hospital)) {
       this.saving.set(false);
-      this.setErrorFeedback('Permission denied', 'Only the user who created this facility can delete it.');
+      this.errorMessage.set('Only the user who created this facility can delete it.');
       return false;
     }
 
@@ -369,178 +357,130 @@ export class HospitalService {
         deletedByUserId: currentUser.id,
       });
 
-      this.setSuccessFeedback('Facility deleted', 'It has been removed from the public directory.');
+      this.saveMessage.set('Facility deleted. It has been removed from the public directory.');
       return true;
     } catch (error) {
-      this.setErrorFeedback('Firestore delete failed', this.humanizeFirestoreError(error));
+      this.errorMessage.set(this.humanizeFirestoreError(error));
       return false;
     } finally {
       this.saving.set(false);
     }
   }
 
-  private setErrorFeedback(summary: string, message: string): void {
-    this.errorMessage.set(message);
-    this.feedbackService.error(summary, message);
-  }
-
-  private setSuccessFeedback(summary: string, message: string): void {
-    this.saveMessage.set(message);
-    this.feedbackService.success(summary, message);
-  }
-
   private createDraft(
-    formValue: HospitalFormValue,
-    roomTypes: string[],
+    formValue: FacilityFormValue,
     editingHospital: HospitalRecord | null,
-  ): HospitalDraft {
+  ): FacilityDraft {
     return {
       name: formValue.name.trim(),
+      type: formValue.type,
       category: formValue.category.trim() || 'Medical Facility',
       description: formValue.description.trim(),
-      location: formValue.location!,
+      latitude: formValue.location!.lat,
+      longitude: formValue.location!.lng,
       landmark: formValue.landmark.trim(),
       address: formValue.address.trim(),
       area: formValue.area.trim(),
       contactNumber: formValue.contactNumber.trim(),
       website: this.normalizeWebsite(formValue.website),
-      totalRooms: formValue.totalRooms,
-      availableRooms: formValue.availableRooms,
-      roomTypes,
-      status: deriveHospitalStatus(
-        formValue.availableRooms,
-        formValue.totalRooms,
-        formValue.status,
-      ),
       sourceLabel: this.resolveSourceLabel(editingHospital),
     };
   }
 
-  private mapHospital(
+  private mapFacility(
     id: string,
     collectionPath: HospitalCollectionPath,
     data: DocumentData,
   ): HospitalRecord {
-    const totalRooms = this.readNumber(data['totalRooms'], 0);
-    const availableRooms = this.readNumber(data['availableRooms'], 0);
+    // Support both new flat lat/lng and legacy nested location map
+    const latitude =
+      this.readCoordinate(data['latitude']) ??
+      this.readCoordinate(data['location']?.['lat']) ??
+      10.7202;
+    const longitude =
+      this.readCoordinate(data['longitude']) ??
+      this.readCoordinate(data['location']?.['lng']) ??
+      122.5621;
 
     return {
       id,
       collectionPath,
       name: this.readString(data['name']) || 'Unnamed Medical Facility',
+      type: this.parseFacilityType(data['type']),
       category: this.readString(data['category']) || 'Medical Facility',
       description: this.readString(data['description']) || 'No description provided yet.',
-      location: this.readLocation(data['location'] ?? data['coordinates']),
+      latitude,
+      longitude,
+      location: { lat: latitude, lng: longitude },
       landmark: this.readString(data['landmark']),
       address: this.readString(data['address']),
       area: this.readString(data['area']) || 'Iloilo City',
       contactNumber: this.readString(data['contactNumber']) || 'Contact number unavailable',
       website: this.normalizeWebsite(this.readString(data['website'])),
-      totalRooms,
-      availableRooms,
-      roomTypes: this.normalizeRoomTypes(this.readStringArray(data['roomTypes'])),
-      status: deriveHospitalStatus(availableRooms, totalRooms, data['status']),
-      createdAt: this.readTimestamp(data['createdAt']),
-      updatedAt: this.readTimestamp(data['updatedAt']),
-      ownerUserId: this.readString(data['ownerUserId']),
-      ownerDisplayName: this.readString(data['ownerDisplayName']) || this.readString(data['ownerName']),
-      deletedAt: this.readTimestamp(data['deletedAt']),
       sourceLabel:
         this.readString(data['sourceLabel']) ||
         this.readString(data['ownerDisplayName']) ||
-        this.readString(data['ownerName']) ||
         (collectionPath === 'hospitals' ? 'Medical team update' : 'Directory update'),
+      isVerified: data['isVerified'] === true,
+      ownerUserId: this.readString(data['ownerUserId']),
+      ownerDisplayName:
+        this.readString(data['ownerDisplayName']) || this.readString(data['ownerName']),
+      createdAt: this.readTimestamp(data['createdAt']),
+      updatedAt: this.readTimestamp(data['updatedAt']),
+      deletedAt: this.readTimestamp(data['deletedAt']),
+      // Overridden by computed `hospitals` signal via live room join
+      totalRooms: 0,
+      availableRooms: 0,
+      roomTypes: [],
+      status: 'available',
     };
+  }
+
+  private parseFacilityType(value: unknown): FacilityType {
+    if (value === 'hospital' || value === 'clinic' || value === 'facility') {
+      return value;
+    }
+    return 'hospital';
   }
 
   private resolveSourceLabel(editingHospital: HospitalRecord | null): string {
     if (editingHospital?.sourceLabel.trim()) {
       return editingHospital.sourceLabel;
     }
-
     const displayName = this.authService.displayName().trim();
-
     return displayName.length > 0 ? `${displayName} update` : 'Medical team update';
   }
 
-  private readLocation(value: unknown): Coordinates {
-    if (
-      typeof value === 'object' &&
-      value !== null &&
-      'lat' in value &&
-      'lng' in value &&
-      typeof value['lat'] === 'number' &&
-      typeof value['lng'] === 'number'
-    ) {
-      return {
-        lat: value['lat'],
-        lng: value['lng'],
-      };
-    }
-
-    return {
-      lat: 10.7202,
-      lng: 122.5621,
-    };
+  private readCoordinate(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
   }
 
   private readString(value: unknown): string {
     return typeof value === 'string' ? value : '';
   }
 
-  private readStringArray(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value.filter((entry): entry is string => typeof entry === 'string');
-  }
-
-  private readNumber(value: unknown, fallback: number): number {
-    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-  }
-
   private readTimestamp(value: unknown): Date | null {
-    if (value instanceof Timestamp) {
-      return value.toDate();
-    }
-
+    if (value instanceof Timestamp) return value.toDate();
     return value instanceof Date ? value : null;
   }
 
-  private normalizeRoomTypes(roomTypes: string[]): string[] {
-    return Array.from(
-      new Set(
-        roomTypes
-          .map((roomType) => roomType.trim())
-          .filter((roomType) => roomType.length > 0),
-      ),
-    );
-  }
-
   private normalizeWebsite(website: string): string {
-    const trimmedWebsite = website.trim();
-
-    if (trimmedWebsite.length === 0) {
-      return '';
-    }
-
-    return /^https?:\/\//i.test(trimmedWebsite) ? trimmedWebsite : `https://${trimmedWebsite}`;
+    const trimmed = website.trim();
+    if (trimmed.length === 0) return '';
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   }
 
   private sortByUpdatedAt(left: HospitalRecord, right: HospitalRecord): number {
     const leftTime = left.updatedAt?.getTime() ?? left.createdAt?.getTime() ?? 0;
     const rightTime = right.updatedAt?.getTime() ?? right.createdAt?.getTime() ?? 0;
-
     return rightTime - leftTime;
   }
 
   private humanizeFirestoreError(error: unknown): string {
     const errorCode = this.readFirebaseErrorCode(error);
-
     switch (errorCode) {
       case 'permission-denied':
-        return 'Firestore rejected this write. Check your Firestore rules for facilities and hospitals.';
+        return 'Firestore rejected this write. Check your permissions.';
       case 'unauthenticated':
         return 'The database rejected the request because the current write is not allowed.';
       case 'unavailable':
@@ -569,19 +509,17 @@ export class HospitalService {
     ) {
       return error['code'];
     }
-
     return null;
   }
 
   private sanitizeFirebaseMessage(error: unknown, fallback: string): string {
     const message = error instanceof Error ? error.message : fallback;
-
     return message
       .replace('FirebaseError: ', '')
       .replace('Firebase: ', '')
       .replace(/\((auth|firestore)\//g, '(')
       .replace(').', '.')
       .replaceAll('-', ' ')
-      .replace(/\b\w/g, (character) => character.toUpperCase());
+      .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 }

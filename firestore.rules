@@ -2,178 +2,26 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && userId is string && request.auth.uid == userId; }
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    function isFacilityOwner(userId) {
-      return isSignedIn() && userId is string && request.auth.uid == userId;
-    }
-
-    function hasValidLocation(location) {
-      return location is map
-        && location.lat is number
-        && location.lng is number;
-    }
-
-    function hasValidRoomTypes(roomTypes) {
-      return roomTypes is list
-        && roomTypes.size() > 0
-        && roomTypes.size() <= 12;
-    }
-
-    function hasValidStatus(status) {
-      return status in ['available', 'fewBeds', 'full'];
-    }
-
-    function hasCoordinatesIfPresent(data) {
-      return !data.keys().hasAny(['coordinates']) || hasValidLocation(data.coordinates);
-    }
-
-    function hasValidHospitalPayload(data) {
-      return data.keys().hasAll([
-          'name',
-          'category',
-          'description',
-          'location',
-          'landmark',
-          'address',
-          'area',
-          'contactNumber',
-          'website',
-          'totalRooms',
-          'availableRooms',
-          'roomTypes',
-          'status',
-          'sourceLabel',
-          'updatedAt'
-        ])
-        && data.keys().hasOnly([
-          'name',
-          'category',
-          'description',
-          'location',
-          'coordinates',
-          'landmark',
-          'address',
-          'area',
-          'contactNumber',
-          'website',
-          'totalRooms',
-          'availableRooms',
-          'roomTypes',
-          'status',
-          'sourceLabel',
-          'createdAt',
-          'updatedAt'
-        ])
-        && data.name is string
-        && data.name.size() > 2
-        && data.category is string
-        && data.category.size() > 1
-        && data.description is string
-        && data.description.size() > 10
-        && data.landmark is string
-        && data.address is string
-        && data.address.size() > 5
-        && data.area is string
-        && data.area.size() > 1
-        && data.contactNumber is string
-        && data.contactNumber.size() > 6
-        && data.website is string
-        && data.sourceLabel is string
-        && data.sourceLabel.size() > 2
-        && data.totalRooms is int
-        && data.totalRooms > 0
-        && data.availableRooms is int
-        && data.availableRooms >= 0
-        && data.availableRooms <= data.totalRooms
-        && hasValidLocation(data.location)
-        && hasCoordinatesIfPresent(data)
-        && hasValidRoomTypes(data.roomTypes)
-        && hasValidStatus(data.status)
-        && data.updatedAt is timestamp;
-    }
-
-    function hasValidFacilityOwnership(data) {
-      return data.ownerUserId is string
-        && data.ownerUserId.size() > 5
-        && data.ownerDisplayName is string
-        && data.ownerDisplayName.size() > 1;
-    }
-
-    function hasValidFacilityDeletionState(data) {
-      return !data.keys().hasAny(['deletedAt', 'deletedByUserId'])
-        || (
-          isSignedIn()
-          && data.deletedAt is timestamp
-          && data.deletedByUserId is string
-          && data.deletedByUserId == request.auth.uid
-        );
-    }
-
-    function hasValidFacilityPayload(data) {
-      return data.keys().hasAll([
-          'name',
-          'category',
-          'description',
-          'location',
-          'landmark',
-          'address',
-          'area',
-          'contactNumber',
-          'website',
-          'totalRooms',
-          'availableRooms',
-          'roomTypes',
-          'status',
-          'sourceLabel',
-          'ownerUserId',
-          'ownerDisplayName',
-          'updatedAt'
-        ])
-        && data.keys().hasOnly([
-          'name',
-          'category',
-          'description',
-          'location',
-          'coordinates',
-          'landmark',
-          'address',
-          'area',
-          'contactNumber',
-          'website',
-          'totalRooms',
-          'availableRooms',
-          'roomTypes',
-          'status',
-          'sourceLabel',
-          'ownerUserId',
-          'ownerDisplayName',
-          'createdAt',
-          'updatedAt',
-          'deletedAt',
-          'deletedByUserId'
-        ])
-        && hasValidHospitalPayload(data)
-        && hasValidFacilityOwnership(data)
-        && hasValidFacilityDeletionState(data);
-    }
-
-    function isValidFacilityCreate(data) {
-      return hasValidFacilityPayload(data)
-        && isFacilityOwner(data.ownerUserId)
-        && data.createdAt is timestamp
-        && !data.keys().hasAny(['deletedAt', 'deletedByUserId']);
-    }
-
-    function isValidFacilityUpdate(data) {
-      return hasValidFacilityPayload(data)
-        && isFacilityOwner(resource.data.ownerUserId)
-        && isFacilityOwner(data.ownerUserId)
-        && data.createdAt == resource.data.createdAt
-        && data.ownerUserId == resource.data.ownerUserId
-        && data.ownerDisplayName == resource.data.ownerDisplayName;
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['email', 'display_name', 'role', 'created_at', 'updated_at'])
+        && request.resource.data.keys().hasOnly(['email', 'display_name', 'role', 'created_at', 'updated_at'])
+        && request.resource.data.role in ['admin', 'staff', 'public']
+        && request.resource.data.email is string
+        && request.resource.data.display_name is string;
+      allow update: if (isOwner(userId) || isAdmin())
+        && request.resource.data.keys().hasOnly(['email', 'display_name', 'role', 'created_at', 'updated_at'])
+        && request.resource.data.role in ['admin', 'staff', 'public'];
+      allow delete: if false;
     }
 
     match /hospitals/{hospitalId} {
@@ -181,15 +29,78 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    function hasValidFacilityPayload(data) {
+      return data.name is string && data.name.size() > 2
+        && data.type in ['hospital', 'clinic', 'facility']
+        && data.category is string && data.category.size() > 1
+        && data.description is string && data.description.size() > 10
+        && data.latitude is number
+        && data.longitude is number
+        && data.landmark is string
+        && data.address is string && data.address.size() > 5
+        && data.area is string && data.area.size() > 1
+        && data.contactNumber is string && data.contactNumber.size() > 6
+        && data.website is string
+        && data.sourceLabel is string && data.sourceLabel.size() > 2
+        && data.isVerified is bool
+        && data.ownerUserId is string && data.ownerUserId.size() > 5
+        && data.ownerDisplayName is string
+        && data.updatedAt is timestamp;
+    }
+
     match /facilities/{facilityId} {
       allow read: if true;
-      allow create: if isValidFacilityCreate(request.resource.data);
-      allow update: if isValidFacilityUpdate(request.resource.data);
+      allow create: if request.resource.data.keys().hasAll(['name','type','category','description','latitude','longitude','landmark','address','area','contactNumber','website','sourceLabel','isVerified','ownerUserId','ownerDisplayName','createdAt','updatedAt','deletedAt'])
+        && request.resource.data.keys().hasOnly(['name','type','category','description','latitude','longitude','landmark','address','area','contactNumber','website','sourceLabel','isVerified','ownerUserId','ownerDisplayName','createdAt','updatedAt','deletedAt'])
+        && hasValidFacilityPayload(request.resource.data)
+        && isOwner(request.resource.data.ownerUserId)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.isVerified == false;
+      allow update: if request.resource.data.keys().hasOnly(['name','type','category','description','latitude','longitude','landmark','address','area','contactNumber','website','sourceLabel','isVerified','ownerUserId','ownerDisplayName','createdAt','updatedAt','deletedAt','deletedByUserId'])
+        && hasValidFacilityPayload(request.resource.data)
+        && isOwner(resource.data.ownerUserId)
+        && isOwner(request.resource.data.ownerUserId)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.ownerUserId == resource.data.ownerUserId
+        && (request.resource.data.isVerified == resource.data.isVerified || isAdmin());
       allow delete: if false;
     }
 
-    match /users/{userId} {
-      allow read, write: if false;
+    match /room_types/{roomTypeId} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasAll(['name', 'description', 'created_at'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0;
+      allow delete: if false;
+    }
+
+    function isRoomFacilityOwner(facilityId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/facilities/$(facilityId))
+        && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerUserId == request.auth.uid;
+    }
+
+    function hasValidRoomPayload(data) {
+      return data.facilityId is string && data.facilityId.size() > 0
+        && data.roomTypeId is string && data.roomTypeId.size() > 0
+        && data.roomNumber is string && data.roomNumber.size() > 0
+        && data.status in ['available', 'occupied', 'maintenance']
+        && data.remarks is string
+        && data.updatedAt is timestamp;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create: if hasValidRoomPayload(request.resource.data)
+        && request.resource.data.keys().hasAll(['facilityId','roomTypeId','roomNumber','status','remarks','createdAt','updatedAt'])
+        && request.resource.data.keys().hasOnly(['facilityId','roomTypeId','roomNumber','status','remarks','createdAt','updatedAt'])
+        && request.resource.data.createdAt is timestamp
+        && (isRoomFacilityOwner(request.resource.data.facilityId) || isAdmin());
+      allow update: if hasValidRoomPayload(request.resource.data)
+        && request.resource.data.keys().hasOnly(['facilityId','roomTypeId','roomNumber','status','remarks','createdAt','updatedAt'])
+        && request.resource.data.facilityId == resource.data.facilityId
+        && (isRoomFacilityOwner(resource.data.facilityId) || isAdmin());
+      allow delete: if isRoomFacilityOwner(resource.data.facilityId) || isAdmin();
     }
   }
 }

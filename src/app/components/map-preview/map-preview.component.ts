@@ -75,9 +75,14 @@ export class MapPreviewComponent {
       this.map = this.leaflet.map(this.previewCanvas().nativeElement, {
         center: [...this.mapService.initialCenter] as [number, number],
         zoom: 13.7,
-        zoomControl: false,
+        zoomControl: true,
         attributionControl: false,
-        scrollWheelZoom: false,
+        scrollWheelZoom: true,
+        touchZoom: true,
+        doubleClickZoom: true,
+        boxZoom: true,
+        minZoom: 11,
+        maxZoom: 19,
         preferCanvas: true,
       });
 
@@ -139,9 +144,9 @@ export class MapPreviewComponent {
 
   private createMarkerIcon(): Icon {
     return this.leaflet!.icon({
-      iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).toString(),
-      iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).toString(),
-      shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).toString(),
+      iconUrl: '/assets/leaflet/marker-icon.png',
+      iconRetinaUrl: '/assets/leaflet/marker-icon-2x.png',
+      shadowUrl: '/assets/leaflet/marker-shadow.png',
       iconSize: [25, 41],
       iconAnchor: [12, 41],
       popupAnchor: [1, -34],

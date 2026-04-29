@@ -3,9 +3,9 @@
   (visibleChange)="handleDialogVisibilityChange($event)"
   [modal]="true"
   [dismissableMask]="!authService.busy()"
-  [draggable]="true"
+  [draggable]="false"
   [resizable]="true"
-  [closable]="false"
+  [closable]="true"
   [baseZIndex]="1500"
   styleClass="gmaps-auth-dialog"
   maskStyleClass="gmaps-dialog-mask"
@@ -22,7 +22,7 @@
         </p>
       </div>
 
-      <button
+      <!-- <button
         pButton
         type="button"
         icon="pi pi-times"
@@ -31,7 +31,7 @@
         severity="secondary"
         (click)="authService.closeModal()"
         aria-label="Close sign in dialog"
-      ></button>
+      ></button> -->
     </div>
   </ng-template>
 

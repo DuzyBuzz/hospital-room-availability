@@ -29,9 +29,9 @@ import type { Coordinates, HospitalRecord, HospitalStatus } from '../../models/h
 import { getHospitalStatusMeta, HOSPITAL_STATUS_OPTIONS } from '../../shared/utils/hospital-status.util';
 import { loadLeaflet } from '../../shared/utils/leaflet-loader.util';
 
-const LEAFLET_MARKER_ICON_URL = new URL('leaflet/dist/images/marker-icon.png', import.meta.url).toString();
-const LEAFLET_MARKER_ICON_RETINA_URL = new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).toString();
-const LEAFLET_MARKER_SHADOW_URL = new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).toString();
+const LEAFLET_MARKER_ICON_URL = '/assets/leaflet/marker-icon.png';
+const LEAFLET_MARKER_ICON_RETINA_URL = '/assets/leaflet/marker-icon-2x.png';
+const LEAFLET_MARKER_SHADOW_URL = '/assets/leaflet/marker-shadow.png';
 
 @Component({
   selector: 'app-map',

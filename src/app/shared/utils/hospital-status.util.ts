@@ -49,14 +49,17 @@ export function deriveHospitalStatus(
     return requestedStatus;
   }
 
-  if (availableRooms <= 0) {
-    return 'full';
-  }
+  return deriveHospitalStatusFromRooms(availableRooms, totalRooms);
+}
 
-  if (totalRooms > 0 && availableRooms / totalRooms <= 0.3) {
-    return 'fewBeds';
-  }
-
+/** Derives facility status from live room counts (no stored status override) */
+export function deriveHospitalStatusFromRooms(
+  availableRooms: number,
+  totalRooms: number,
+): HospitalStatus {
+  if (totalRooms === 0) return 'available';
+  if (availableRooms <= 0) return 'full';
+  if (availableRooms / totalRooms <= 0.3) return 'fewBeds';
   return 'available';
 }
 

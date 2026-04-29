@@ -1,6 +1,7 @@
-<div class="mx-auto w-full max-w-5xl">
+﻿<div class="mx-auto w-full max-w-5xl">
   <form [formGroup]="form" (ngSubmit)="submitForm()" class="space-y-6">
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+      <!-- Left column: Core details -->
       <section class="space-y-5 rounded-4xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Core details</p>
@@ -14,6 +15,15 @@
             @if (shouldShowError(form.controls.name)) {
               <span class="mt-2 block text-xs font-semibold text-rose-600">Facility name is required.</span>
             }
+          </label>
+
+          <label class="block">
+            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Facility type</span>
+            <select formControlName="type" class="gmaps-form-input">
+              @for (typeOption of facilityTypeOptions; track typeOption.value) {
+                <option [value]="typeOption.value">{{ typeOption.label }}</option>
+              }
+            </select>
           </label>
 
           <label class="block">
@@ -47,6 +57,7 @@
           </label>
         </div>
 
+        <!-- Map section -->
         <section class="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -87,8 +98,9 @@
           </div>
         </section>
 
+        <!-- Additional details -->
         <section class="rounded-[1.75rem] border border-slate-200 bg-white p-4">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Add more details</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Contact information</p>
 
           <div class="mt-4 grid gap-4 sm:grid-cols-2">
             <label class="block sm:col-span-2">
@@ -111,71 +123,191 @@
               <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Website</span>
               <input formControlName="website" type="text" class="gmaps-form-input" placeholder="https://example.com" />
             </label>
-
-            <label class="block">
-              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Total rooms</span>
-              <input formControlName="totalRooms" type="number" min="1" class="gmaps-form-input" />
-            </label>
-
-            <label class="block">
-              <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Available rooms</span>
-              <input formControlName="availableRooms" type="number" min="0" class="gmaps-form-input" />
-            </label>
           </div>
         </section>
       </section>
 
+      <!-- Right column: Room management -->
       <section class="space-y-5 rounded-4xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Availability</p>
-          <h3 class="mt-2 text-xl font-bold tracking-tight text-slate-900">Room status and metadata</h3>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Room management</p>
+          <h3 class="mt-2 text-xl font-bold tracking-tight text-slate-900">Rooms & availability</h3>
+          <p class="mt-1 text-sm text-slate-500">Add individual rooms. Availability is computed from room statuses.</p>
         </div>
 
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Room types</p>
+        <!-- Room list -->
+        @if (roomEntries().length > 0) {
+          <div class="space-y-2">
+            @for (entry of roomEntries(); track $index; let idx = $index) {
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <label class="block">
+                    <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Room type</span>
+                    <select
+                      class="gmaps-form-input"
+                      [value]="entry.roomTypeId"
+                      (change)="patchRoom(idx, { roomTypeId: $any($event.target).value })"
+                    >
+                      @for (rt of roomTypeService.roomTypes(); track rt.id) {
+                        <option [value]="rt.id">{{ rt.name }}</option>
+                      }
+                    </select>
+                  </label>
 
-          <div class="mt-3 flex flex-wrap gap-2">
-            @for (roomType of roomTypeOptions(); track roomType) {
-              <button
-                type="button"
-                (click)="toggleRoomType(roomType)"
-                class="rounded-full border px-3 py-2 text-sm font-semibold transition"
-                [class.border-sky-300]="isRoomTypeSelected(roomType)"
-                [class.bg-sky-50]="isRoomTypeSelected(roomType)"
-                [class.text-sky-800]="isRoomTypeSelected(roomType)"
-                [class.border-slate-200]="!isRoomTypeSelected(roomType)"
-                [class.bg-white]="!isRoomTypeSelected(roomType)"
-                [class.text-slate-600]="!isRoomTypeSelected(roomType)"
-              >
-                {{ roomType }}
-              </button>
+                  <label class="block">
+                    <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Room number</span>
+                    <input
+                      type="text"
+                      class="gmaps-form-input"
+                      [value]="entry.roomNumber"
+                      (input)="patchRoom(idx, { roomNumber: $any($event.target).value })"
+                    />
+                  </label>
+
+                  <label class="block">
+                    <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Status</span>
+                    <select
+                      class="gmaps-form-input"
+                      [value]="entry.status"
+                      (change)="patchRoom(idx, { status: $any($event.target).value })"
+                    >
+                      @for (statusOpt of roomStatusOptions; track statusOpt.value) {
+                        <option [value]="statusOpt.value">{{ statusOpt.label }}</option>
+                      }
+                    </select>
+                  </label>
+
+                  <label class="block">
+                    <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Remarks</span>
+                    <input
+                      type="text"
+                      class="gmaps-form-input"
+                      [value]="entry.remarks"
+                      (input)="patchRoom(idx, { remarks: $any($event.target).value })"
+                      placeholder="Optional notes"
+                    />
+                  </label>
+                </div>
+
+                <div class="mt-2 flex justify-end">
+                  <button type="button" (click)="removeRoom(idx)" class="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition" aria-label="Remove room">
+                  <i class="pi pi-times text-xs" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
             }
           </div>
+        } @else {
+          <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center">
+            <p class="text-sm font-semibold text-slate-600">No rooms added yet</p>
+            <p class="mt-1 text-xs text-slate-400">Add rooms below to track availability per room.</p>
+          </div>
+        }
 
-          <label class="mt-4 block">
-            <span class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Additional room types</span>
-            <input formControlName="customRoomTypes" type="text" class="gmaps-form-input" placeholder="Separate additional room types with commas" />
-          </label>
-        </div>
+        <!-- Add room row -->
+        @if (addingRoom()) {
+          <div class="space-y-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-600">New room</p>
 
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Status</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label class="block">
+                <span class="mb-1 block text-xs font-semibold text-slate-500">Room type</span>
+                <select
+                  class="gmaps-form-input"
+                  [value]="newRoom().roomTypeId"
+                  (change)="patchNewRoom({ roomTypeId: $any($event.target).value })"
+                >
+                  @for (rt of roomTypeService.roomTypes(); track rt.id) {
+                    <option [value]="rt.id">{{ rt.name }}</option>
+                  }
+                </select>
+              </label>
 
-          <div class="mt-3 flex flex-wrap gap-2">
-            @for (statusOption of statusOptions(); track statusOption.status) {
+              <label class="block">
+                <span class="mb-1 block text-xs font-semibold text-slate-500">Room number / name</span>
+                <input
+                  type="text"
+                  class="gmaps-form-input"
+                  [value]="newRoom().roomNumber"
+                  (input)="patchNewRoom({ roomNumber: $any($event.target).value })"
+                  placeholder="e.g. 101, ICU-A"
+                />
+              </label>
+
+              <label class="block">
+                <span class="mb-1 block text-xs font-semibold text-slate-500">Status</span>
+                <select
+                  class="gmaps-form-input"
+                  [value]="newRoom().status"
+                  (change)="patchNewRoom({ status: $any($event.target).value })"
+                >
+                  @for (statusOpt of roomStatusOptions; track statusOpt.value) {
+                    <option [value]="statusOpt.value">{{ statusOpt.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="block">
+                <span class="mb-1 block text-xs font-semibold text-slate-500">Remarks (optional)</span>
+                <input
+                  type="text"
+                  class="gmaps-form-input"
+                  [value]="newRoom().remarks"
+                  (input)="patchNewRoom({ remarks: $any($event.target).value })"
+                  placeholder="Notes for this room"
+                />
+              </label>
+            </div>
+
+            <div class="flex gap-2">
               <button
                 type="button"
-                (click)="selectStatus(statusOption.status)"
-                class="rounded-full border px-4 py-2 text-sm font-semibold transition"
-                [style.background-color]="form.controls.status.value === statusOption.status ? statusOption.chipBackground : '#ffffff'"
-                [style.border-color]="statusOption.chipBorder"
-                [style.color]="form.controls.status.value === statusOption.status ? statusOption.chipText : '#475569'"
+                (click)="confirmAddRoom()"
+                [disabled]="!newRoom().roomTypeId || !newRoom().roomNumber.trim()"
+                class="rounded-full bg-sky-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {{ statusOption.label }}
+                Add room
               </button>
-            }
+              <button
+                type="button"
+                (click)="cancelAddRoom()"
+                class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
+        } @else {
+          <button
+            type="button"
+            (click)="startAddRoom()"
+            class="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 py-3 text-sm font-semibold text-slate-500 transition hover:border-sky-400 hover:text-sky-600"
+          >
+            <i class="pi pi-plus text-xs" aria-hidden="true"></i>
+            Add room
+          </button>
+        }
+
+        <!-- Availability summary -->
+        @if (roomEntries().length > 0) {
+          <div class="rounded-2xl bg-slate-50 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Summary</p>
+            <div class="mt-2 flex flex-wrap gap-3 text-sm">
+              <span class="flex items-center gap-1.5 text-emerald-700">
+                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                {{ countRoomsByStatus('available') }} available
+              </span>
+              <span class="flex items-center gap-1.5 text-rose-700">
+                <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+                {{ countRoomsByStatus('occupied') }} occupied
+              </span>
+              <span class="flex items-center gap-1.5 text-amber-700">
+                <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+                {{ countRoomsByStatus('maintenance') }} maintenance
+              </span>
+            </div>
+          </div>
+        }
 
         @if (submitted() && !draftLocation()) {
           <div class="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

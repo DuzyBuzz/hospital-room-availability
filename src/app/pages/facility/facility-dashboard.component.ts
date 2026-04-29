@@ -1,33 +1,30 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { map } from 'rxjs';
 import { AuthModalComponent } from '../../components/auth/auth-modal.component';
 import { MapComponent } from '../../components/map/map.component';
 import { HospitalDetailsComponent } from '../../components/sidebar/hospital-details.component';
 import { HospitalListComponent } from '../../components/sidebar/hospital-list.component';
-import { SidebarComponent } from '../../components/sidebar/sidebar.component';
 import { AuthService } from '../../core/services/auth.service';
-import { FeedbackService } from '../../core/services/feedback.service';
 import { HospitalService } from '../../core/services/hospital.service';
 import { MapService } from '../../core/services/map.service';
 import type { Coordinates, HospitalRecord, HospitalStatus } from '../../models/hospital.model';
-import type { HospitalFormValue } from '../../shared/interfaces/hospital-form.interface';
+import type { FacilityFormValue } from '../../shared/interfaces/hospital-form.interface';
 import { FacilityFormComponent } from './facility-form.component';
 
 @Component({
   selector: 'app-facility-dashboard',
   imports: [
     AuthModalComponent,
-    ButtonModule,
     DialogModule,
     FacilityFormComponent,
     HospitalDetailsComponent,
     HospitalListComponent,
     MapComponent,
-    SidebarComponent,
+    ReactiveFormsModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './facility-dashboard.component.html',
@@ -36,14 +33,17 @@ import { FacilityFormComponent } from './facility-form.component';
   },
 })
 export class FacilityDashboardComponent {
+  private readonly formBuilder = inject(NonNullableFormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   protected readonly authService = inject(AuthService);
-  private readonly feedbackService = inject(FeedbackService);
   protected readonly hospitalService = inject(HospitalService);
   protected readonly mapService = inject(MapService);
   protected readonly mobileSheetExpanded = signal(false);
+  protected readonly userMenuOpen = signal(false);
+  protected readonly profileDialogOpen = signal(false);
+  protected readonly profileValidated = signal(false);
 
   private readonly mapComponent = viewChild(MapComponent);
   private readonly routeHospitalId = toSignal(
@@ -83,6 +83,14 @@ export class FacilityDashboardComponent {
   protected readonly selectedOwnershipMessage = computed(() =>
     this.managementRestrictionMessage(this.selectedHospital()),
   );
+
+  protected readonly profileForm = this.formBuilder.group({
+    currentPassword: ['', [Validators.required, Validators.minLength(6)]],
+    displayName: ['', [Validators.required, Validators.minLength(2)]],
+    email: ['', [Validators.required, Validators.email]],
+    newPassword: [''],
+    confirmPassword: [''],
+  });
 
   constructor() {
     effect(
@@ -176,13 +184,89 @@ export class FacilityDashboardComponent {
     this.authService.openModal('signIn');
   }
 
+  protected toggleUserMenu(): void {
+    this.userMenuOpen.update((state) => !state);
+  }
+
+  protected openProfileDialog(): void {
+    const user = this.authService.user();
+
+    if (!user) {
+      this.authService.openModal('signIn');
+      return;
+    }
+
+    this.userMenuOpen.set(false);
+    this.profileValidated.set(false);
+    this.profileForm.reset({
+      currentPassword: '',
+      displayName: user.displayName,
+      email: user.email,
+      newPassword: '',
+      confirmPassword: '',
+    });
+    this.profileDialogOpen.set(true);
+  }
+
+  protected closeProfileDialog(): void {
+    if (this.authService.busy()) {
+      return;
+    }
+
+    this.profileDialogOpen.set(false);
+    this.profileValidated.set(false);
+  }
+
+  protected async validateProfileAccess(): Promise<void> {
+    this.profileForm.controls.currentPassword.markAsTouched();
+
+    if (this.profileForm.controls.currentPassword.invalid) {
+      return;
+    }
+
+    const valid = await this.authService.validateCurrentPassword(this.profileForm.controls.currentPassword.value);
+    this.profileValidated.set(valid);
+  }
+
+  protected async submitProfileUpdate(): Promise<void> {
+    this.profileForm.markAllAsTouched();
+
+    if (!this.profileValidated()) {
+      return;
+    }
+
+    if (this.profileForm.controls.displayName.invalid || this.profileForm.controls.email.invalid) {
+      return;
+    }
+
+    const newPassword = this.profileForm.controls.newPassword.value.trim();
+    const confirmPassword = this.profileForm.controls.confirmPassword.value.trim();
+
+    if (newPassword.length > 0 && newPassword !== confirmPassword) {
+      this.authService.errorMessage.set('Password confirmation does not match.');
+      return;
+    }
+
+    const updated = await this.authService.updateProfileCredentials({
+      currentPassword: this.profileForm.controls.currentPassword.value,
+      displayName: this.profileForm.controls.displayName.value,
+      email: this.profileForm.controls.email.value,
+      newPassword,
+    });
+
+    if (updated) {
+      this.closeProfileDialog();
+    }
+  }
+
+  protected async signOutFromMenu(): Promise<void> {
+    this.userMenuOpen.set(false);
+    await this.authService.signOut();
+  }
+
   protected startNewEntry(): void {
     if (!this.authService.isAuthenticated()) {
       this.pendingEntryMode.set('create');
-      this.feedbackService.info(
-        'Account required',
-        'Create or sign in to a facility account before publishing a new listing.',
-      );
       this.authService.openModal('signUp');
       return;
     }
@@ -227,21 +311,14 @@ export class FacilityDashboardComponent {
 
   protected pickLocation(location: Coordinates): void {
     this.mapService.setDraftLocation(location);
-    this.mapService.setMapNotice('Facility pin updated. Save the form when the map marker is in the right spot.');
-    this.feedbackService.success(
-      'Leaflet pin updated',
-      `Marker set to ${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}.`,
-    );
     this.mapComponent()?.focusLocation(location, 15.4);
   }
 
   protected clearLocation(): void {
     this.mapService.clearDraftLocation();
-    this.mapService.setMapNotice('Map pin cleared. Drop a new marker before saving the facility listing.');
-    this.feedbackService.info('Leaflet pin cleared', 'Choose a new point on the map when you are ready.');
   }
 
-  protected async saveHospital(formValue: HospitalFormValue): Promise<void> {
+  protected async saveHospital(formValue: FacilityFormValue): Promise<void> {
     const hospitalId = await this.hospitalService.saveHospital(formValue, this.editingHospital());
 
     if (!hospitalId) {
@@ -299,33 +376,23 @@ export class FacilityDashboardComponent {
     this.mobileSheetExpanded.set(true);
 
     if (!this.hospitalService.canRequestManagement(targetHospital)) {
-      const message = this.managementRestrictionMessage(targetHospital) ?? 'This facility is locked for editing.';
-
       this.editingHospitalId.set(null);
       this.mapService.clearDraftLocation();
-      this.mapService.setMapNotice(message);
-      this.feedbackService.warn('Editing unavailable', message);
+      this.mapService.setMapNotice(this.managementRestrictionMessage(targetHospital) ?? 'This facility is locked for editing.');
       return;
     }
 
     if (!this.authService.isAuthenticated()) {
       this.pendingEntryMode.set('edit');
       this.editingHospitalId.set(hospitalId);
-      this.feedbackService.info(
-        'Sign in required',
-        'Use the account that created this facility to edit or delete it.',
-      );
       this.authService.openModal('signIn');
       return;
     }
 
     if (!this.hospitalService.canCurrentUserManage(targetHospital)) {
-      const message = this.managementRestrictionMessage(targetHospital) ?? 'Only the creator can manage this facility.';
-
       this.editingHospitalId.set(null);
       this.mapService.clearDraftLocation();
-      this.mapService.setMapNotice(message);
-      this.feedbackService.warn('Permission denied', message);
+      this.mapService.setMapNotice(this.managementRestrictionMessage(targetHospital) ?? 'Only the creator can manage this facility.');
       return;
     }
 
@@ -391,16 +458,14 @@ export class FacilityDashboardComponent {
       return;
     }
 
-    const confirmed = await this.feedbackService.confirmAction({
-      header: 'Delete this facility?',
-      message: `Delete ${hospital.name}? This removes it from the public directory.`,
-      acceptLabel: 'Delete listing',
-      rejectLabel: 'Keep listing',
-      acceptButtonStyleClass: 'p-button-danger p-button-sm',
-    });
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(
+        `Delete ${hospital.name}? This removes it from the public directory.`,
+      );
 
-    if (!confirmed) {
-      return;
+      if (!confirmed) {
+        return;
+      }
     }
 
     const deleted = await this.hospitalService.deleteHospital(hospital);
@@ -428,18 +493,6 @@ export class FacilityDashboardComponent {
 
   protected toggleMobileSheet(): void {
     this.mobileSheetExpanded.update((value) => !value);
-  }
-
-  protected openMobileSheet(): void {
-    this.mobileSheetExpanded.set(true);
-  }
-
-  protected closeMobileSheet(): void {
-    this.mobileSheetExpanded.set(false);
-  }
-
-  protected handleMobileSheetVisibilityChange(visible: boolean): void {
-    this.mobileSheetExpanded.set(visible);
   }
 
   protected isSingleStatusSelected(status: HospitalStatus): boolean {

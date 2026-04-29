@@ -118,6 +118,70 @@
   gap: 0.65rem;
 }
 
+.maps-user-menu {
+  position: relative;
+}
+
+.maps-user-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  width: 2.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.maps-user-menu__trigger:hover {
+  transform: translateY(-1px);
+  background: #1e293b;
+}
+
+.maps-user-menu__trigger--guest {
+  background: #475569;
+}
+
+.maps-user-menu__dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 70;
+  min-width: 10rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  background: #ffffff;
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.45);
+  overflow: hidden;
+}
+
+.maps-user-menu__item {
+  display: flex;
+  width: 100%;
+  border: 0;
+  background: #ffffff;
+  padding: 0.62rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+}
+
+.maps-user-menu__item:hover {
+  background: #f8fafc;
+}
+
+.maps-user-menu__item--danger {
+  color: #b91c1c;
+}
+
 .maps-topbar__icon-button,
 .maps-topbar__action {
   display: inline-flex;
